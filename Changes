@@ -1,5 +1,15 @@
 Revision history for Router-Statistics
 
+0.95	1/12/2006
+	Added some basic man entries for the module , after a little feedback
+	many more yet to come.
+0.94	1/12/2006
+	The development server had the wrong time, causing install failures for
+	certain systems. This is now fixed ( ntpdate is useful ).
+0.93	29/11/2006
+	Added Blocking mirrors to all functions and some tidy up of code
+0.92	28/11/2006
+	Alot of tidying has occured and function listing for the documentation
 0.91    27/11/2006
         First version, semi alpha release, used extensively in the real world
 	but as yet not tidy enough for a full public release

@@ -10,14 +10,14 @@ my $result;
 my $test= new Router::Statistics;
 
 $result = $test->Router_Add( "10.1.1.1" , "dtv" );
-$result = $test->Router_Ready ( "10.1.1.1" );
+$result = $test->Router_Ready_Blocking ( "10.1.1.1" );
 
-$result = $test->Router_Test_Connection(\%routers);
+$result = $test->Router_Test_Connection_Blocking(\%routers);
 
 if ( scalar( keys %routers )==0 )
   { print "No access to Any of the Routers specified.\n";exit(0); }
 
-$result = $test->UBR_get_DOCSIS_interface_information( \%interface_information );
+$result = $test->UBR_get_DOCSIS_interface_information_Blocking( \%interface_information );
 foreach my $ubr ( keys %interface_information )
        { 
 	foreach my $interface ( keys %{$interface_information{$ubr}} )

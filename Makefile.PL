@@ -9,7 +9,7 @@ WriteMakefile(
     ABSTRACT_FROM       => 'lib/Router/Statistics.pm',
     PL_FILES            => {},
     PREREQ_PM => {
-	'Net::SNMP'  => 1
+	'Net::SNMP'  => '1',
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'Router-Statistics-*' },

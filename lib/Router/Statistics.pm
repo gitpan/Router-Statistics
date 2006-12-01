@@ -10,11 +10,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.91_1
+Version 0.95_1
 
 =cut
 
-our $VERSION = '0.91_1';
+our $VERSION = '0.95_1';
 
 =head1 SYNOPSIS
 
@@ -37,17 +37,17 @@ by the router IPs information was received for.
     $statistics = new Router::Statistics();
 
     $result = $statistics->Router_Add( "10.1.1.1" , "public" );
-    $result = $statistics->Router_Ready( "10.1.1.1" );
+    $result = $statistics->Router_Ready_Blocking( "10.1.1.1" );
     ....
     $result = $statistics->Router_Add( "10.1.1.200" , "public" );
-    $result = $statistics->Router_Ready( "10.1.1.200" );
+    $result = $statistics->Router_Ready_Blocking( "10.1.1.200" );
 
-    $result = $statistics->Router_Test_Connection(\%routers);
+    $result = $statistics->Router_Test_Connection_Blocking(\%routers);
 
     if ( !%routers )
         { print "No access to Any of the Routers specified.\n";exit(0); }
 
-    $result = $statistics->Router_get_interfaces( \%interfaces );
+    $result = $statistics->Router_get_interfaces_Blocking( \%interfaces );
 
     foreach my $router ( keys %interfaces )
 	{
@@ -85,83 +85,188 @@ is the primary action focus at the moment.
 
 =head1 FUNCTIONS
 
-Router_Add
 
-Router_Remove
+=item C<< Router_Add >>
 
-Router_Ready
+This function adds a Router IP, Community String and Timeout to the internal list of usable routers. It
+does not initialise any SNMP functionality at this stage. If no timeout is specified 2 seconds is
+the default.
 
-Router_Return_All
+    Router_Add ( "<ip>", "<community>", <timeout> );
 
-Router_Ready_Blocking
+Example of Use
 
-Router_get_networks
+    my $result = $test->Router_Add( "10.1.1.1" , "public" );
 
-Router_get_interfaces
+    is the same as this
 
-Router_get_interfaces_Blocking
+    my $result = $test->Router_Add( "10.1.1.1" , "public" , 2 );
 
-Router_Test_Connection
+=item C<< Router_Remove >>
 
-Router_Test_Connection_Blocking
+The function remotes a Router IP from the internal list of usable router. If there is an open
+SNMP session, it is closed.
 
-CPE_Add
+Example of Use
 
-CPE_Remove
+    my $result = $test->Router_Remove ( "10.1.1.1" );
 
-CPE_Ready
+=item C<< Router_Ready >>
 
-CPE_Return_All
+=item C<< Router_Return_All >>
 
-CPE_export_import_fields
+=item C<< Router_Ready_Blocking >>
 
-CPE_export_fields
+=item C<< Router_get_networks >>
 
-CPE_export_schema
+=item C<< Router_get_interfaces >>
 
-CPE_export_data_start
+=item C<< Router_get_interfaces_Blocking >>
 
-CPE_export_data_end
+=item C<< Router_Test_Connection >>
 
-CPE_export_data
+=item C<< Router_Test_Connection_Blocking >>
 
-CPE_gather_all_data_walk
+=item C<< CPE_Add >>
 
-CPE_gather_all_data
+=item C<< CPE_Remove >>
 
-UBR_get_CPE_information_Blocking
+=item C<< CPE_Ready >>
 
-UBR_get_CPE_information
+=item C<< CPE_Return_All >>
 
-get_CPE_info
+=item C<< CPE_export_import_fields >>
 
-CPE_Test_Connection
+=item C<< CPE_export_fields >>
 
-Export_UBR_Slot_Inventory
+=item C<< CPE_export_schema >>
 
-Export_UBR_Port_Inventory
+=item C<< CPE_export_data_start >>
 
-UBR_get_DOCSIS_upstream_interfaces
+=item C<< CPE_export_data_end >>
 
-UBR_get_DOCSIS_interface_information
+=item C<< CPE_export_data >>
 
-UBR_get_DOCSIS_downstream_interfaces
+=item C<< CPE_gather_all_data_walk >>
 
-UBR_get_CPE_information_Blocking
+=item C<< CPE_gather_all_data >>
 
-UBR_get_CPE_information
+=item C<< get_CPE_info_dead ** DO NOT USE IS NOT COMPLETE >>
 
-UBR_modify_cpe_DOCSIS_profile
+=item C<< CPE_Test_Connection >>
 
-UBR_reset_cpe_device
+=item C<< Export_UBR_Slot_Inventory >>
 
-UBR_get_active_cpe_profiles
+=item C<< Export_UBR_Port_Inventory >>
 
-UBR_get_active_cpe_profiles_Blocking
+=item C<< UBR_get_DOCSIS_upstream_interfaces >>
 
-UBR_get_active_upstream_profiles
+=item C<< UBR_get_DOCSIS_upstream_interfaces_Blocking >>
 
-UBR_get_stm
+=item C<< UBR_get_DOCSIS_interface_information >>
+
+=item C<< UBR_get_DOCSIS_interface_information_Blocking >>
+
+=item C<< UBR_get_DOCSIS_downstream_interfaces >>
+
+=item C<< UBR_get_DOCSIS_downstream_interfaces_Blocking >>
+
+=item C<< UBR_get_CPE_information >>
+
+=item C<< UBR_get_CPE_information_Blocking >>
+
+=item C<< UBR_modify_cpe_DOCSIS_profile >>
+
+=item C<< UBR_reset_cpe_device >>
+
+=item C<< UBR_get_active_cpe_profiles >>
+
+=item C<< UBR_get_active_cpe_profiles_Blocking >>
+
+=item C<< UBR_get_active_upstream_profiles >>
+
+=item C<< UBR_get_active_upstream_profiles_Blocking >>
+
+=over 4
+
+=item C<< UBR_get_stm >>
+
+The use of the STM functions come with a MASSIVE warning, that due to bugs in Cisco IOS
+your UBR ( Cable router ) will drop all currently connected devices if you poll it OUTSIDE
+of the configured STM time scope. This is a known defect so you HAVE BEEN WARNED. There are
+a couple of possible workarounds however none have been confirmed.
+
+Use of the Non Blocking function should be done with care and the UBR_get_stm_Blocking is
+preferred.
+
+Example of Use
+
+    use Router::Statistics;
+    use strict;
+
+    my $test= new Router::Statistics;
+    my %stm_information;
+    my $result = $test->Router_Add( "10.1.1.1" , "public" );
+    $result = $test->Router_Ready ( "10.1.1.1" );
+    $result = $test->UBR_get_stm( \%stm_information );
+
+The %stm_information hash contains a tree rooted by the IP address of the routers Added
+initially and the STM information as follows
+
+     Router IP
+          -- STM Instance Number
+             --  ccqmEnfRuleViolateID ( never seems to be populated )
+             --  ccqmEnfRuleViolateMacAddr  - MAC address of the device
+             --  ccqmEnfRuleViolateRuleName - Name of the STM rule specified
+             --  ccqmEnfRuleViolateByteCount - The Cisco specification is wrong
+             --  ccqmEnfRuleViolateLastDetectTime - The time the violation occured
+             --  ccqmEnfRuleViolatePenaltyExpTime - The time the violation finishes
+
+
+It should be noted that due to another bug not all entries for STM violations end up
+in the STM MIB. This appears to be caused by the end time of the STM configuration, if
+a devices expiry time is after the end of the STM window, it does not go into the MIB.
+
+=back
+
+=over 4
+
+=item C<< UBR_get_stm_Blocking >>
+
+
+The use of the STM functions come with a MASSIVE warning, that due to bugs in Cisco IOS
+your UBR ( Cable router ) will drop all currently connected devices if you poll it OUTSIDE
+of the configured STM time scope. This is a known defect so you HAVE BEEN WARNED. There are
+a couple of possible workarounds however none have been confirmed.
+
+Example of Use
+
+    use Router::Statistics;
+    use strict;
+
+    my $test= new Router::Statistics;
+    my %stm_information;
+    my $result = $test->Router_Add( "10.1.1.1" , "public" );
+    $result = $test->Router_Ready_Blocking ( "10.1.1.1" );
+    $result = $test->UBR_get_stm_Blocking( \%stm_information );
+
+The %stm_information hash contains a tree rooted by the IP address of the routers Added
+initially and the STM information as follows
+
+    Router IP
+        -- STM Instance Number
+           --  ccqmEnfRuleViolateID ( never seems to be populated )
+           --  ccqmEnfRuleViolateMacAddr  - MAC address of the device
+           --  ccqmEnfRuleViolateRuleName - Name of the STM rule specified
+           --  ccqmEnfRuleViolateByteCount - The Cisco specification is wrong
+           --  ccqmEnfRuleViolateLastDetectTime - The time the violation occured
+           --  ccqmEnfRuleViolatePenaltyExpTime - The time the violation finishes
+
+It should be noted that due to another bug not all entries for STM violations end up
+in the STM MIB. This appears to be caused by the end time of the STM configuration, if
+a devices expiry time is after the end of the STM window, it does not go into the MIB.
+
+=back
 
 =cut
 
@@ -341,7 +446,7 @@ my $timeout = shift;
 if ( !$ip_address || !$snmp_key )
         { $self->{_GLOBAL}{STATUS}="No IP Address or SNMP Key Specified."; return 0; }
 
-if ( !$timeout ) { $timeout=1; }
+if ( !$timeout ) { $timeout=2; }
 $self->{_GLOBAL}{'Router'}{$ip_address}{'key'}=$snmp_key;
 $self->{_GLOBAL}{'Router'}{$ip_address}{'timeout'}=$timeout;
 return 1;
@@ -353,6 +458,8 @@ my $self = shift;
 my $ip_address = shift;
 if ( !$ip_address )
 	{ $self->{_GLOBAL}{STATUS}="No IP Address Specified."; return 0; }
+if ( $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'} )
+	{ $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->close(); }
 delete ( $self->{_GLOBAL}{'Router'}{$ip_address} );
 return 1;
 }
@@ -728,6 +835,49 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 return 1;
 }
 
+sub UBR_get_stm_Blocking
+{
+my $self = shift;
+my $data = shift;
+my $current_ubrs=$self->UBR_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
+
+my ( $foo, $bar );
+
+my $snmp_variables = Router::Statistics::OID->STM_populate_oid();
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_table( -baseoid => ${$snmp_variables}{'PRIVATE_stm_base'} );
+
+        while(($foo, $bar) = each(%{$profile_information}))
+                {
+                my $instance;
+                if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateMacAddr'}.(\d+).(\d+)/ )
+                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateMacAddr'}=_convert_mac_address($bar); }
+
+                if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateLastDetectTime'}.(\d+).(\d+)/ )
+                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateLastDetectTime'}=_convert_time_mask($bar); }
+
+                if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolatePenaltyExpTime'}.(\d+).(\d+)/ )
+                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolatePenaltyExpTime'}=_convert_time_mask($bar); }
+
+                if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateRuleName'}.(\d+).(\d+)/ )
+                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateRuleName'}=$bar; }
+
+                if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateByteCount'}.(\d+).(\d+)/ )
+                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateByteCount'}=$bar; }
+
+                if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateID'}.(\d+).(\d+)/ )
+                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateID'}=$bar; }
+                delete ${$profile_information}{$foo};
+                }
+        }
+return 1;
+}
+
+
 
 sub Router_get_interfaces
 {
@@ -831,6 +981,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 			{ ${$data}{$ip_address}{$1}{'ifOutDiscards'}=$bar; }
 		if ( $foo=~/^${$snmp_variables}{'ifOutErrors'}.(\d+)/ )
 			{ ${$data}{$ip_address}{$1}{'ifOutErrors'}=$bar; }
+		delete ${$profile_information}{$foo};
 		}
 	}
 
@@ -1440,6 +1591,34 @@ snmp_dispatcher();
 return 1;
 }
 
+sub UBR_get_DOCSIS_upstream_interfaces_Blocking
+{
+my $self = shift;
+my $data = shift;
+
+my ( $foo, $bar );
+
+my $current_ubrs=$self->Router_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
+
+my $snmp_variables = Router::Statistics::OID->DOCSIS_populate_oid();
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_table(
+                        -baseoid => ${$snmp_variables}{'PRIVATE_cable_channel_information'} );
+	while(($foo, $bar) = each(%{$profile_information}))
+		{ foreach my $snmp_value ( keys %{$snmp_variables} )
+			{ if ( $foo=~/^${$snmp_variables}{$snmp_value}.(\d+)/ ) { ${$data}{$ip_address}{$1}{$snmp_value}=$bar; } }
+		delete ${$profile_information}{$foo};
+		}
+
+        }
+return 1;
+}
+
+
 
 sub UBR_get_DOCSIS_interface_information
 {
@@ -1462,6 +1641,34 @@ snmp_dispatcher();
 
 return 1;
 }
+
+sub UBR_get_DOCSIS_interface_information_Blocking
+{
+my $self = shift;
+my $data = shift;
+
+my ( $foo, $bar );
+
+my $current_ubrs=$self->Router_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
+
+my $snmp_variables = Router::Statistics::OID->DOCSIS_populate_oid();
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_table(
+                        -baseoid => ${$snmp_variables}{'PRIVATE_cable_signal_base'} );
+        while(($foo, $bar) = each(%{$profile_information}))
+                { foreach my $snmp_value ( keys %{$snmp_variables} )
+                        { if ( $foo=~/^${$snmp_variables}{$snmp_value}.(\d+)/ ) { ${$data}{$ip_address}{$1}{$snmp_value}=$bar; } }
+                delete ${$profile_information}{$foo};
+                }
+        }
+
+return 1;
+}
+
 
 sub UBR_get_DOCSIS_downstream_interfaces
 {
@@ -1493,10 +1700,44 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 			[${$data}{$ip_address}{$interface}{'docsIfDownChannelModulation'}];
                 }
         }
-
-
 return 1;
 }
+
+sub UBR_get_DOCSIS_downstream_interfaces_Blocking
+{
+my $self = shift;
+my $data = shift;
+
+my ( $foo, $bar );
+
+my $current_ubrs=$self->Router_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
+
+my $snmp_variables = Router::Statistics::OID->DOCSIS_populate_oid();
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_table(
+                        -baseoid => ${$snmp_variables}{'PRIVATE_downstream_interface'} );
+        while(($foo, $bar) = each(%{$profile_information}))
+                { foreach my $snmp_value ( keys %{$snmp_variables} )
+                        { if ( $foo=~/^${$snmp_variables}{$snmp_value}.(\d+)/ ) { ${$data}{$ip_address}{$1}{$snmp_value}=$bar; } }
+		delete ${$profile_information}{$foo};
+		}
+        }
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        foreach my $interface ( keys %{${$data}{$ip_address}} )
+                {
+                ${$data}{$ip_address}{$interface}{'docsIfDownChannelModulation'}=
+                        ( '0_Unknown', '1_other', '2_qam64', '3_qam256' )
+                        [${$data}{$ip_address}{$interface}{'docsIfDownChannelModulation'}];
+                }
+        }
+return 1;
+}
+
 
 sub UBR_get_active_upstream_profiles
 {
@@ -1515,9 +1756,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 			-callback       => [ \&validate_one, $data, $ip_address, $snmp_variables ],
 			-baseoid =>	${$snmp_variables}{'PRIVATE_docsIfCmtsModulationEntry'} );
 	}
-
 snmp_dispatcher();
-
 foreach my $ip_address ( keys %{$current_ubrs} )
 	{
 	foreach my $profile ( keys %{${$data}{$ip_address}} )
@@ -1544,12 +1783,60 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 return 1;
 }
 
+sub UBR_get_active_upstream_profiles_Blocking
+{
+my $self = shift;
+my $data = shift;
+
+my ( $foo, $bar );
+
+my $current_ubrs=$self->Router_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
+
+my $snmp_variables = Router::Statistics::OID->DOCSIS_populate_oid();
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_table(
+                        -callback       => [ \&validate_one, $data, $ip_address, $snmp_variables ],
+                        -baseoid =>     ${$snmp_variables}{'PRIVATE_docsIfCmtsModulationEntry'} );
+
+        while(($foo, $bar) = each(%{$profile_information}))
+                { foreach my $snmp_value ( keys %{$snmp_variables} )
+                        { if ( $foo=~/^${$snmp_variables}{$snmp_value}.(\d+)/ ) { ${$data}{$ip_address}{$1}{$snmp_value}=$bar; } }
+		delete ${$profile_information}{$foo};
+		}
+        }
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        foreach my $profile ( keys %{${$data}{$ip_address}} )
+                {
+		${$data}{$ip_address}{$profile}{'docsIfCmtsModType'}=
+			(
+			'Unknown',
+			'other',
+			'qpsk',
+			'qam16',
+			'qam8',
+			'qam32',
+			'qam64',
+			'qam128'
+			) [${$data}{$ip_address}{$profile}{'docsIfCmtsModType'}];
+                }
+        }
+return 1;
+}
+
+
 sub UBR_get_CPE_information_Blocking
 {
 
 my $self = shift;
 my $data = shift;
 my $data_selector = shift;
+
+my ( $foo, $bar );
 
 # Entry into the function is a point to a hash to store the data
 # the result is a hash with the following
@@ -1580,7 +1867,6 @@ my $snmp_variables = Router::Statistics::OID->DOCSIS_populate_oid();
 foreach my $ip_address ( keys %{$current_ubrs} )
         {
 	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-	my ( $foo , $bar );
 	for ($check_loop=0;$check_loop<100;$check_loop++)
 		{
 		my $sider=${$snmp_variables}{'docsIfCmtsServiceCmStatusIndex'}.".".$check_loop;
@@ -2239,33 +2525,34 @@ sub UBR_get_active_cpe_profiles_Blocking
 my $self = shift;
 my $data = shift;
 
+my ( $foo, $bar );
+
 my $current_ubrs=$self->Router_Return_All();
 if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
 
 my $snmp_variables = Router::Statistics::OID->DOCSIS_populate_oid();
 foreach my $ip_address ( keys %{$current_ubrs} )
         {
-	my ( $foo, $bar );
 	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
 	my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 		get_table( 
 			-baseoid => ${$snmp_variables}{'PRIVATE_docs_profile_main'} );
 	while(($foo, $bar) = each(%{$profile_information})) 
 		{
-		next unless($foo =~ /^${$snmp_variables}{'PRIVATE_docs_profile_main'}.(\d+).(\d+)/);
+		#next unless($foo =~ /^${$snmp_variables}{'PRIVATE_docs_profile_main'}.(\d+).(\d+)/);
 		if ( $foo=~/^${$snmp_variables}{'docsIfQosProfPriority'}.(\d+)/ )
 			{ ${$data}{$ip_address}{$1}{'docsIfQosProfPriority'}=$bar; }
 		if ( $foo=~/^${$snmp_variables}{'docsIfQosProfMaxDownBandwidth'}.(\d+)/ )
 			{ ${$data}{$ip_address}{$1}{'docsIfQosProfMaxDownBandwidth'}=$bar; }
 		if ( $foo=~/^${$snmp_variables}{'docsIfQosProfMaxUpBandwidth'}.(\d+)/ )
 			{ ${$data}{$ip_address}{$1}{'docsIfQosProfMaxUpBandwidth'}=$bar; }
-
+		delete ${$profile_information}{$foo};
 		}
 	}
 return 1;
 }
 
-sub get_CPE_info
+sub get_CPE_info_dead
 {
 my $self = shift;
 my $ip_address = shift;
@@ -2666,6 +2953,11 @@ my($Ip4) = $Int & 0xFF; return("$Ip4.$Ip3.$Ip2.$Ip1");
 }
 
 =head1 BUGS
+
+It is has been discovered using Non blocking functions on Cisco routers does
+not always return the same consistent information compared to Blocking. It is
+the opinion of the author to only use Blocking unless you know what you are doing,
+and all functions will have Blocking mirrors in the first public release.
 
 Module now semi supports blocking and non blocking mode.
 It has been discovered that non-blocking is significantly longer to
