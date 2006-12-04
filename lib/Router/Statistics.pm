@@ -1,8 +1,10 @@
 package Router::Statistics;
 
-use strict vars;
+use strict;
 use Router::Statistics::OID;
 use Net::SNMP qw (:snmp :asn1);
+use Net::Telnet;
+use MIME::Base64;
 
 =head1 NAME
 
@@ -10,11 +12,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.95_1
+Version 0.97_1
 
 =cut
 
-our $VERSION = '0.95_1';
+our $VERSION = '0.97_1';
 
 =head1 SYNOPSIS
 
@@ -806,11 +808,16 @@ sub UBR_get_stm
 {
 my $self = shift;
 my $data = shift;
+my $router_info = shift;
+my $username = shift;
+my $password = shift;
 
 my $current_ubrs=$self->Router_Return_All();
 if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
 
 my $snmp_variables = Router::Statistics::OID->STM_populate_oid();
+my $telnet_commands = Router::Statistics::OID->telnet_commands();
+
 foreach my $ip_address ( keys %{$current_ubrs} )
         {
 	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
@@ -838,13 +845,20 @@ return 1;
 sub UBR_get_stm_Blocking
 {
 my $self = shift;
+my $router_info = shift;
 my $data = shift;
-my $current_ubrs=$self->UBR_Return_All();
+my $telnet_data = shift;
+my $username = shift;
+my $password = shift;
+
+my $current_ubrs=$self->Router_Return_All();
 if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
 
 my ( $foo, $bar );
 
 my $snmp_variables = Router::Statistics::OID->STM_populate_oid();
+my $telnet_commands = Router::Statistics::OID->telnet_commands();
+
 foreach my $ip_address ( keys %{$current_ubrs} )
         {
         next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
@@ -873,7 +887,42 @@ foreach my $ip_address ( keys %{$current_ubrs} )
                         { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateID'}=$bar; }
                 delete ${$profile_information}{$foo};
                 }
-        }
+
+	my $router_name = ${$router_info}{$ip_address}{'hostName'};
+
+	if ( $router_name )
+		{
+		my $stm_command = base64_decode(${$telnet_commands}{'stm_command'});
+        	my $router_t = new Net::Telnet (Timeout => 20,
+                                        Telnetmode => 0,
+                                        Prompt => "/^[Username :]|[Password :]|[$router_name]/" );
+		my $login_router = $router_t->open( $ip_address );
+	        if ( $login_router )
+			{
+			$router_t->login($username,$password);
+			my $line = $router_t->print("term len 0");
+			$router_t->waitfor("/$router_name\#/");
+			my @lines = $router_t->cmd(String => $stm_command ,Prompt  => "/$router_name\#/");
+			$router_t->close();
+			$a=0;
+			foreach my $line ( @lines )
+				{
+				next if $line=~/^$router_name/;
+				next unless $line=~/^[0-9]/;
+				next unless length($line)>10;
+				chop($line);
+				my @fields = (split(/\W*\s+\W*/,$line));
+				my $instance_telnet = "$a".$fields[0];
+				${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateMacAddr'}=$fields[1];
+				${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateRuleName'}=$fields[2];
+				${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateLastDetectTime'}="$fields[4] $fields[5]";
+				${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolatePenaltyExpTime'}="$fields[6] $fields[7]";
+				$a++;
+				}
+			}
+		}
+	}
+			
 return 1;
 }
 
@@ -2684,10 +2733,29 @@ return 1;
 
 sub _convert_time_mask
 {
-my ($raw_input)=@_;
+my ($raw_input, $format)=@_;
+if (!$format )
+	{ $format="<MonName><day> <HH>:<MM>:<SS>"; }
 my ( $char1, $char2, $char3, $char4, $char5, $char6, $char7, $char8, $char9, $char10) = unpack ('nCCCCCCCCC', $raw_input);
-my @months = qw [ Jan Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec ];
-return ( "$char1 ".sprintf("%.2d",$char3)." ".$months[$char2]." ".sprintf("%.2d:%.2d:%.2d",$char4,$char5,$char6));
+
+my $month_name = ( 'Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec')[ $char2-1 ];
+my $month = $char2;
+my $year = $char1;
+my $day = $char3;
+my $hour = sprintf("%.2d",$char4);
+my $minute = sprintf("%.2d",$char5);
+my $second = sprintf("%.2d",$char6);
+
+$format =~s/\<year\>/$year/g;
+$format =~s/\<MonName\>/$month_name/g;
+$format =~s/\<Mon\>/$month/g;
+$format =~s/\<day\>/$day/g;
+
+$format =~s/\<HH\>/$hour/g;
+$format =~s/\<MM\>/$minute/g;
+$format =~s/\<SS\>/$second/g;
+
+return ( $format );
 }
 
 

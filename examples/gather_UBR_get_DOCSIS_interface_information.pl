@@ -9,7 +9,7 @@ my (%interface_information, %routers );
 my $result;
 my $test= new Router::Statistics;
 
-$result = $test->Router_Add( "10.1.1.1" , "dtv" );
+$result = $test->Router_Add( "10.1.1.1" , "public" );
 $result = $test->Router_Ready_Blocking ( "10.1.1.1" );
 
 $result = $test->Router_Test_Connection_Blocking(\%routers);

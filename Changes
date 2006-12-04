@@ -1,5 +1,13 @@
 Revision history for Router-Statistics
 
+0.97	3/12/2006
+	Added into the OID module the telnet command set and tidied the
+	STM gather code a little.
+0.96	2/12/2006
+	Added Telnet ( eekkk panic and run away quickly ) to allow correct
+	STM statistics to be collected from routers. It looks like this is 
+	heading down a dangerous path, however I DO NOT intend to use Telnet
+	for anything else.
 0.95	1/12/2006
 	Added some basic man entries for the module , after a little feedback
 	many more yet to come.

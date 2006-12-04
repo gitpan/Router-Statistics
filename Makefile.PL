@@ -10,6 +10,8 @@ WriteMakefile(
     PL_FILES            => {},
     PREREQ_PM => {
 	'Net::SNMP'  => '1',
+	'Net::Telnet' => '3.03',
+	'MIME::Base64' => '3.07'
     },
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'Router-Statistics-*' },

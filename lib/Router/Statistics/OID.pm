@@ -10,7 +10,7 @@ Router::Statistics::OID - OID Module for Router::Statistics
 
 Version 1.32
 
-our $VERSION = '1.32';
+our $VERSION = '1.33';
 
 =head1 SYNOPSIS
 
@@ -22,6 +22,7 @@ module.
 These functions are used internally to Router::Statistics however may become more
 'friendly' in the future.
 
+telnet_commands
 CPE_populate_oid
 Router_Link_Map_oid
 Router_inventory_oid
@@ -47,6 +48,15 @@ sub new {
 	$self->{_GLOBAL}{'STATUS'}="OK";
 
         return $self;
+}
+
+sub telnet_commands
+{
+my %telnet_command_set =
+		(
+		'stm_command'			=>	'c2ggY2FibGUgc3Vic2NyaWJlci11c2FnZSB8IGluY2x1ZGUgQWN0'
+		);
+return \%telnet_command_set;
 }
 
 sub CPE_populate_oid
