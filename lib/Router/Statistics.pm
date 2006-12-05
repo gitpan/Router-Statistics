@@ -12,11 +12,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.97_1
+Version 0.97_3
 
 =cut
 
-our $VERSION = '0.97_1';
+our $VERSION = '0.97_3';
 
 =head1 SYNOPSIS
 
@@ -247,13 +247,19 @@ Example of Use
     use strict;
 
     my $test= new Router::Statistics;
-    my %stm_information;
+    my (%stm_inventory, %stm_telnet_inventory , %routers);
     my $result = $test->Router_Add( "10.1.1.1" , "public" );
     $result = $test->Router_Ready_Blocking ( "10.1.1.1" );
-    $result = $test->UBR_get_stm_Blocking( \%stm_information );
+    $result = $test->Router_Test_Connection_Blocking(\%routers);
+    $result = $test->UBR_get_stm_Blocking( 
+        \%router,
+        \%stm_information,
+        \%stm_telnet_inventory,
+        "telnetlogin",
+        "telnetpassword" );
 
-The %stm_information hash contains a tree rooted by the IP address of the routers Added
-initially and the STM information as follows
+The %stm_information and %stm_telnet_inventory hashes contains a tree rooted by the IP address 
+of the routers Added initially and the STM information as follows
 
     Router IP
         -- STM Instance Number
@@ -806,6 +812,9 @@ return $output;
 
 sub UBR_get_stm
 {
+# This function is not going to have the extra STM information added
+# as it should not really be run anyway and it would only be a repition
+# of code.
 my $self = shift;
 my $data = shift;
 my $router_info = shift;
@@ -888,36 +897,43 @@ foreach my $ip_address ( keys %{$current_ubrs} )
                 delete ${$profile_information}{$foo};
                 }
 
-	my $router_name = ${$router_info}{$ip_address}{'hostName'};
-
-	if ( $router_name )
+	if ( $username && $password )
 		{
-		my $stm_command = base64_decode(${$telnet_commands}{'stm_command'});
-        	my $router_t = new Net::Telnet (Timeout => 20,
+
+		my $router_name = ${$router_info}{$ip_address}{'hostName'};
+		if ( $router_name )
+			{
+        		my $router_t = new Net::Telnet (Timeout => 20,
                                         Telnetmode => 0,
                                         Prompt => "/^[Username :]|[Password :]|[$router_name]/" );
-		my $login_router = $router_t->open( $ip_address );
-	        if ( $login_router )
-			{
-			$router_t->login($username,$password);
-			my $line = $router_t->print("term len 0");
-			$router_t->waitfor("/$router_name\#/");
-			my @lines = $router_t->cmd(String => $stm_command ,Prompt  => "/$router_name\#/");
-			$router_t->close();
-			$a=0;
-			foreach my $line ( @lines )
+			my $login_router = $router_t->open( $ip_address );
+	        	if ( $login_router )
 				{
-				next if $line=~/^$router_name/;
-				next unless $line=~/^[0-9]/;
-				next unless length($line)>10;
-				chop($line);
-				my @fields = (split(/\W*\s+\W*/,$line));
-				my $instance_telnet = "$a".$fields[0];
-				${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateMacAddr'}=$fields[1];
-				${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateRuleName'}=$fields[2];
-				${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateLastDetectTime'}="$fields[4] $fields[5]";
-				${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolatePenaltyExpTime'}="$fields[6] $fields[7]";
-				$a++;
+				my $stm_command = decode_base64(${$telnet_commands}{'stm_command'});
+				$router_t->login($username,$password);
+				my $line = $router_t->print( decode_base64(${$telnet_commands}{'termline'}) ) ;
+				$router_t->waitfor("/$router_name\#/");
+				my @lines = $router_t->cmd(String => $stm_command ,Prompt  => "/$router_name\#/");
+				$router_t->close();
+				# we need to make sure we handle the multiple domains within the output
+				# as Telnet commands are notorious for providing correct but repeating idents
+				# these need to be mapped into a unique handler. Lets face it thought, using
+				# telnet is just a really bad idea.
+				$a=0;
+				foreach my $line ( @lines )
+					{
+					next if $line=~/^$router_name/;
+					next unless $line=~/^[0-9]/;
+					next unless length($line)>10;
+					chop($line);
+					my @fields = (split(/\W*\s+\W*/,$line));
+					my $instance_telnet = "$a".$fields[0];
+					${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateMacAddr'}=$fields[1];
+					${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateRuleName'}=$fields[2];
+					${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateLastDetectTime'}="$fields[4] $fields[5]";
+					${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolatePenaltyExpTime'}="$fields[6] $fields[7]";
+					$a++;
+					}
 				}
 			}
 		}

@@ -8,9 +8,9 @@ Router::Statistics::OID - OID Module for Router::Statistics
 
 =head1 VERSION
 
-Version 1.32
+Version 1.34
 
-our $VERSION = '1.33';
+our $VERSION = '1.34';
 
 =head1 SYNOPSIS
 
@@ -54,6 +54,7 @@ sub telnet_commands
 {
 my %telnet_command_set =
 		(
+		'termline'			=>	'dGVybSBsZW4gMA==',
 		'stm_command'			=>	'c2ggY2FibGUgc3Vic2NyaWJlci11c2FnZSB8IGluY2x1ZGUgQWN0'
 		);
 return \%telnet_command_set;

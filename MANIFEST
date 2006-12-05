@@ -6,4 +6,5 @@ README
 lib/Router/Statistics.pm
 lib/Router/Statistics/OID.pm
 examples/gather_UBR_get_DOCSIS_interface_information.pl
+examples/gather_UBR_get_STM_information.pl
 t/00-load.t
