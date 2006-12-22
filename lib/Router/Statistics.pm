@@ -12,11 +12,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.97_3
+Version 0.98_6
 
 =cut
 
-our $VERSION = '0.97_3';
+our $VERSION = '0.98_6';
 
 =head1 SYNOPSIS
 
@@ -115,47 +115,161 @@ Example of Use
 
 =item C<< Router_Ready >>
 
-=item C<< Router_Return_All >>
+This function sets up the SNMP session object for the IP specified. This is for the non
+blocking function set.
+
+Example of Use
+
+    my $result = $test->Router_Ready ( "10.1.1.1" );
 
 =item C<< Router_Ready_Blocking >>
 
-=item C<< Router_get_networks >>
+This function sets up the SNMP session object for the IP specified. This is for the
+blocking function set.
 
-=item C<< Router_get_interfaces >>
+Example of Use
 
-=item C<< Router_get_interfaces_Blocking >>
+    my $result = $test->Router_Ready_Blocking ( "10.1.1.1" );
 
 =item C<< Router_Test_Connection >>
 
+This function sends requests for sysUpTime, hostName and sysDescr SNMP variables and 
+if successful populates a given hash pointer rooted by the IP of the routers specified.
+
+If the router is not reachable the SNMP session is destroyed ( created by Router_Ready )
+and thus not polled for information when other functions are called.
+
+Example of Use
+
+    my %routers;
+    my $result = $test->Router_Test_Connection(\%routers);
+
 =item C<< Router_Test_Connection_Blocking >>
+
+This function sends requests for sysUpTime, hostName and sysDescr SNMP variables and
+if successful populates a given hash pointer rooted by the IP of the routers specified.
+
+This is the Blocking mirror to the Router_Test_Connection function
+
+Example of Use
+
+    my %routers;
+    my $result = $test->Router_Test_Connection_Blocking(\%routers);
+
+=item C<< Router_Return_All >>
+
+This function returns a hash with all the current Routers which were added with Router_Add.
+There is little reason to call this function in your own routines and may be move to an 
+internal view.
+
+Example of Use
+
+    my %routers = $test->Router_Return_All();
+
+=item C<< Router_get_networks >>
+
+No detail given.
+
+=item C<< Router_get_interfaces >>
+
+This function returns the following for each interface found on the router
+
+    ifDescr ifType ifMtu ifSpeed ifPhysAddress ifAdminStatus ifOperStatus ifLastChange
+    ifInOctets ifInUcastPkts ifInNUcastPkts ifInDiscards ifInErrors ifInUnknownProtos
+    ifOutOctets ifOutUcastPkts ifOutNUcastPkts ifOutDiscards ifOutErrors ifAlias
+
+The data is returned in a structured hash as follows
+
+    Router IP Address
+           Interface Instance Number
+                 Interface Attribute ie. ifDescr
+		 Interface Attribute ie. ifType
+
+Example of Use
+
+    my %interface_information;
+    my $test = $test->Router_get_interfaces( \%interface_information );
+
+=item C<< Router_get_interfaces_Blocking >>
+
+This function returns the following for each interface found on the router and is the 
+blocking mirror to the Router_get_interfaces function
+
+This function returns the following for each interface found on the router
+
+    ifDescr ifType ifMtu ifSpeed ifPhysAddress ifAdminStatus ifOperStatus ifLastChange
+    ifInOctets ifInUcastPkts ifInNUcastPkts ifInDiscards ifInErrors ifInUnknownProtos
+    ifOutOctets ifOutUcastPkts ifOutNUcastPkts ifOutDiscards ifOutErrors ifAlias
+
+The data is returned in a structured hash as follows
+
+    Router IP Address
+           Interface Instance Number
+                 Interface Attribute ie. ifDescr
+                 Interface Attribute ie. ifType
+
+Example of Use
+
+    my %interface_information;
+    my $test = $test->Router_get_interfaces_Blocking( \%interface_information );
 
 =item C<< CPE_Add >>
 
+No detail given.
+
 =item C<< CPE_Remove >>
+
+No detail given.
 
 =item C<< CPE_Ready >>
 
+No detail given.
+
 =item C<< CPE_Return_All >>
+
+No detail given.
 
 =item C<< CPE_export_import_fields >>
 
+No detail given.
+
 =item C<< CPE_export_fields >>
+
+No detail given.
 
 =item C<< CPE_export_schema >>
 
+No detail given.
+
 =item C<< CPE_export_data_start >>
+
+No detail given.
 
 =item C<< CPE_export_data_end >>
 
+No detail given.
+
 =item C<< CPE_export_data >>
+
+No detail given.
 
 =item C<< CPE_gather_all_data_walk >>
 
+No detail given.
+
 =item C<< CPE_gather_all_data >>
+
+No detail given.
 
 =item C<< get_CPE_info_dead ** DO NOT USE IS NOT COMPLETE >>
 
+No detail given.
+
 =item C<< CPE_Test_Connection >>
+
+No detail given.
+
+=item C<< Get_UBR_Inventory >>
 
 =item C<< Export_UBR_Slot_Inventory >>
 
@@ -188,8 +302,6 @@ Example of Use
 =item C<< UBR_get_active_upstream_profiles >>
 
 =item C<< UBR_get_active_upstream_profiles_Blocking >>
-
-=over 4
 
 =item C<< UBR_get_stm >>
 
@@ -229,12 +341,7 @@ It should be noted that due to another bug not all entries for STM violations en
 in the STM MIB. This appears to be caused by the end time of the STM configuration, if
 a devices expiry time is after the end of the STM window, it does not go into the MIB.
 
-=back
-
-=over 4
-
 =item C<< UBR_get_stm_Blocking >>
-
 
 The use of the STM functions come with a MASSIVE warning, that due to bugs in Cisco IOS
 your UBR ( Cable router ) will drop all currently connected devices if you poll it OUTSIDE
@@ -274,7 +381,27 @@ It should be noted that due to another bug not all entries for STM violations en
 in the STM MIB. This appears to be caused by the end time of the STM configuration, if
 a devices expiry time is after the end of the STM window, it does not go into the MIB.
 
-=back
+=item C<< Get_7500_Inventory >>
+
+    The same construct as Get_UBR_Inventory
+
+=item C<< Export_7500_Slot_Inventory >>
+
+=item C<< Export_7500_Port_Inventory >>
+
+=item C<< Get_GSR_Inventory >>
+
+    The same construct as Get_UBR_Inventory
+
+=item C<< Export_GSR_Slot_Inventory >>
+
+=item C<< Export_GSR_Port_Inventory >>
+
+=item C<< Get_7600_Inventory >>
+
+=item C<< Export_7600_Slot_Inventory >>
+
+=item C<< Export_7600_Port_Inventory >>
 
 =cut
 
@@ -327,7 +454,6 @@ my $oids = shift;
 
 if ( !$self->{_GLOBAL}{'CPE'}{$ip_address} )
 	{ 
-	print "Not added '$ip_address' failed ready'\n";
 	$self->{_GLOBAL}{STATUS}="CPE IP Address Not Added"; return 0; }
 
 my ( $session, $error ) =
@@ -438,7 +564,8 @@ if ( !$ip_address || !$snmp_key )
 if ( !$timeout )
 	{ $timeout=2; }
 
-$self->{_GLOBAL}{'CPE'}{$ip_address}{'key'}=$snmp_key;
+$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys'}=join(',',(split(/,/,$snmp_key))[1-10]);
+$self->{_GLOBAL}{'CPE'}{$ip_address}{'key'}=(split(/,/,$snmp_key))[0];
 $self->{_GLOBAL}{'CPE'}{$ip_address}{'router'}=$router;
 $self->{_GLOBAL}{'CPE'}{$ip_address}{'timeout'}=$timeout;
 $self->{_GLOBAL}{'CPE'}{$ip_address}{'id'} = $cpe_id;
@@ -917,7 +1044,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 				$router_t->close();
 				# we need to make sure we handle the multiple domains within the output
 				# as Telnet commands are notorious for providing correct but repeating idents
-				# these need to be mapped into a unique handler. Lets face it thought, using
+				# these need to be mapped into a unique handler. Lets face it though, using
 				# telnet is just a really bad idea.
 				$a=0;
 				foreach my $line ( @lines )
@@ -1048,12 +1175,23 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 			{ ${$data}{$ip_address}{$1}{'ifOutErrors'}=$bar; }
 		delete ${$profile_information}{$foo};
 		}
+
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_table(
+                -baseoid => ${$snmp_variables}{'ifAlias'} );
+        while(($foo, $bar) = each(%{$profile_information}))
+                {
+		if ( $foo=~/^${$snmp_variables}{'ifAlias'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifAlias'}=$bar; }
+		delete ${$profile_information}{$foo};
+		}
+
 	}
 
 return 1;
 }
 
-sub Get_7500_inventory
+sub Get_7500_Inventory
 {
 my $self = shift;
 my $data = shift;
@@ -1213,7 +1351,7 @@ foreach my $ip_address ( keys %{$data} )
 return 1;
 }
 
-sub Get_GSR_inventory
+sub Get_GSR_Inventory
 {
 my $self = shift;
 my $data = shift;
@@ -1573,7 +1711,7 @@ foreach my $ip_address ( keys %{$data} )
 return 1;
 }
 
-sub Get_7600_inventory
+sub Get_7600_Inventory
 {
 my $self = shift;
 my $data = shift;
@@ -2719,19 +2857,25 @@ foreach my $ip_address ( keys %{$current_cpes} )
                         -varbindlist => [ ${$snmp_variables}{'sysUpTime'} ]);
         }
 snmp_dispatcher();
+# We have done all the first keys in one go, so we should be left with devices that either have
+# had two (or more) keys specified or none left.
 foreach my $ip_address ( keys %{$current_cpes} )
         {
-        if ( !${$data}{$ip_address}{'sysUpTime'} )
+        while ( !${$data}{$ip_address}{'sysUpTime'} && $self->{_GLOBAL}{'CPE'}{$ip_address}{'keys'} )
                 {
-                $self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'}->close();
-                $self->{_GLOBAL}{'CPE'}{$ip_address}{'key'}="donald";
-                $self->CPE_Ready ( $ip_address );
+		$self->{_GLOBAL}{'CPE'}{$ip_address}{'key'}=
+			(split(/,/,$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys'}))[0];
+		$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys'}=join(',',
+			(split(/,/,$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys'}))[1-10]);
+               	$self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'}->close();
+               	$self->CPE_Ready ( $ip_address );
                 if ( $self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'} )
-                        {
-                        $self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'}->
-                                get_request(
-                                        -callback       => [ \&validate_callback, $ip_address, $data, $snmp_variables ],
-                                        -varbindlist => [ ${$snmp_variables}{'sysUpTime'} ] );
+       	                {
+       	                $self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'}->
+       	                        get_request(
+       	                                -callback       => [ \&validate_callback, $ip_address, $data, $snmp_variables ],
+       	                                -varbindlist => [ ${$snmp_variables}{'sysUpTime'} ] );
+			snmp_dispatcher();
                         }
                 }
         }

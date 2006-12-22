@@ -1,5 +1,13 @@
 Revision history for Router-Statistics
 
+0.98	19/12/2006
+	Finished CPE SNMP key cycler, so different CPE can now have different
+	SNMP keys and the CPE_Test_Connection function will try and determine
+	which one to use. SNMP keys should be supplied comma seperated 
+	ie. public,private,mykey and the code will use them in order to determine
+	which one is correct.
+	Added some more text for the help section (although not brilliant)
+	Added different router type inventory functions, 7500, 7600(6500) and GSR
 0.97	3/12/2006
 	Added into the OID module the telnet command set and tidied the
 	STM gather code a little.
