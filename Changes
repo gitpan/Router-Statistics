@@ -1,5 +1,13 @@
 Revision history for Router-Statistics
 
+0.99	9/1/2007
+	Added the option for 'enable' password for telnet command ( currently only stm )
+	however will be making 'generic' attributes for username/password and enable
+	password per UBR in a future release.
+	Fixed UBR_get_DOCSIS_interface_information_Blocking which did not work as expected
+	Updated Get_UBR_inventory with cpu_type, ios_version and chassis type.
+	This function and all other non prefixed UBR functions will be changes to UBR_xx
+	before release of version 1.x
 0.98	19/12/2006
 	Finished CPE SNMP key cycler, so different CPE can now have different
 	SNMP keys and the CPE_Test_Connection function will try and determine

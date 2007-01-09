@@ -12,11 +12,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.98_6
+Version 0.99_1
 
 =cut
 
-our $VERSION = '0.98_6';
+our $VERSION = '0.99_1';
 
 =head1 SYNOPSIS
 
@@ -363,7 +363,11 @@ Example of Use
         \%stm_information,
         \%stm_telnet_inventory,
         "telnetlogin",
-        "telnetpassword" );
+        "telnetpassword",
+        "enablepassword"* );
+
+*The enable password is only required if your login does not put you into the correct
+privs account when logged in initially.
 
 The %stm_information and %stm_telnet_inventory hashes contains a tree rooted by the IP address 
 of the routers Added initially and the STM information as follows
@@ -986,6 +990,7 @@ my $data = shift;
 my $telnet_data = shift;
 my $username = shift;
 my $password = shift;
+my $enable = shift;
 
 my $current_ubrs=$self->Router_Return_All();
 if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
@@ -1030,17 +1035,25 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 		my $router_name = ${$router_info}{$ip_address}{'hostName'};
 		if ( $router_name )
 			{
+			my $safe_router_name=$router_name;
         		my $router_t = new Net::Telnet (Timeout => 20,
                                         Telnetmode => 0,
-                                        Prompt => "/^[Username :]|[Password :]|[$router_name]/" );
+                                        Prompt => "/^Username :|Password :|$safe_router_name/" );
 			my $login_router = $router_t->open( $ip_address );
 	        	if ( $login_router )
 				{
-				my $stm_command = decode_base64(${$telnet_commands}{'stm_command'});
 				$router_t->login($username,$password);
+				if ( $enable )
+					{
+					my $line = $router_t->print("enable");
+					$router_t->waitfor("/Password/");
+					my $line = $router_t->print( $enable );
+					$router_t->waitfor("/$safe_router_name/");
+					}
+				my $stm_command = decode_base64(${$telnet_commands}{'stm_command'});
 				my $line = $router_t->print( decode_base64(${$telnet_commands}{'termline'}) ) ;
 				$router_t->waitfor("/$router_name\#/");
-				my @lines = $router_t->cmd(String => $stm_command ,Prompt  => "/$router_name\#/");
+				my @lines = $router_t->cmd(String => $stm_command ,Prompt  => "/$safe_router_name\#/");
 				$router_t->close();
 				# we need to make sure we handle the multiple domains within the output
 				# as Telnet commands are notorious for providing correct but repeating idents
@@ -1049,7 +1062,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 				$a=0;
 				foreach my $line ( @lines )
 					{
-					next if $line=~/^$router_name/;
+					next if $line=~/^$safe_router_name/;
 					next unless $line=~/^[0-9]/;
 					next unless length($line)>10;
 					chop($line);
@@ -1622,6 +1635,70 @@ undef %temp;
 return 1;
 }
 
+sub Get_UBR_Inventory_Blocking
+{
+my $self = shift;
+my $data = shift;
+my $current_ubrs=$self->Router_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
+my $snmp_variables = Router::Statistics::OID->Router_inventory_oid();
+my $int_snmp_variables = Router::Statistics::OID->Host_populate_oid();
+my %temp;
+my ($foo,$bar);
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_table(
+                        -baseoid => ${$snmp_variables}{'PRIVATE_inventory'} );
+
+	while(($foo, $bar) = each(%{$profile_information}))
+                { foreach my $snmp_value ( keys %{$snmp_variables} )
+                        { if ( $foo=~/^${$snmp_variables}{$snmp_value}.(\d+)/ ) { $temp{$ip_address}{$1}{$snmp_value}=$bar; } }
+                delete ${$profile_information}{$foo};
+                }
+
+	my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+		get_request ( -varbindlist => [
+				${$int_snmp_variables}{'sysDescr'},
+				${$int_snmp_variables}{'entPhysicalDescr.1'},
+				${$int_snmp_variables}{'entPhysicalDescr.2'},
+				] );
+
+	${$data}{$ip_address}{'ios_version'} =
+		(split(/,/,$profile_information->{ ${$int_snmp_variables}{'sysDescr'} }))[1];
+	${$data}{$ip_address}{'chassis'} =
+		$profile_information->{ ${$int_snmp_variables}{'entPhysicalDescr.1'} };
+	${$data}{$ip_address}{'cpu_type'} =
+		$profile_information->{ ${$int_snmp_variables}{'entPhysicalDescr.2'} };
+
+        }
+
+foreach my $ip_address ( keys %temp )
+        {
+        foreach my $relative (  keys %{$temp{$ip_address}} )
+                {
+                next unless $temp{$ip_address}{$relative}{'entPhysicalDescr'}=~/mc/i ||
+                        $temp{$ip_address}{$relative}{'entPhysicalDescr'}=~/ether/i;
+                $temp{$ip_address}{'rev'}{ $temp{$ip_address}{$relative}{'entPhysicalParentRelPos'} }=
+                        $relative;
+                }
+        foreach my $a ( keys %{$temp{$ip_address}{'rev'}} )
+                {
+                foreach my $attribute ( keys %{$snmp_variables} )
+                        {
+                        next if $attribute=~/PRIVATE/;
+                        ${$data}{$ip_address}{$a}{$attribute}=
+                                $temp{$ip_address}{  $temp{$ip_address}{'rev'}{$a} }{$attribute};
+                        }
+                }
+        ${$data}{$ip_address}{'total_slots'}=6;
+        }
+undef %temp;
+return 1;
+}
+
+
 sub Export_UBR_Slot_Inventory
 {
 my $self = shift;
@@ -1817,6 +1894,15 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 		delete ${$profile_information}{$foo};
 		}
 
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_table(
+                        -baseoid => ${$snmp_variables}{'PRIVATE_cable_channel_parameters'} );
+	while(($foo, $bar) = each(%{$profile_information}))
+		{ foreach my $snmp_value ( keys %{$snmp_variables} )
+			{ if ( $foo=~/^${$snmp_variables}{$snmp_value}.(\d+)/ ) { ${$data}{$ip_address}{$1}{$snmp_value}=$bar; } }
+		delete ${$profile_information}{$foo};
+		}
+
         }
 return 1;
 }
@@ -2002,7 +2088,6 @@ foreach my $ip_address ( keys %{$current_ubrs} )
         next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
         my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
                 get_table(
-                        -callback       => [ \&validate_one, $data, $ip_address, $snmp_variables ],
                         -baseoid =>     ${$snmp_variables}{'PRIVATE_docsIfCmtsModulationEntry'} );
 
         while(($foo, $bar) = each(%{$profile_information}))
