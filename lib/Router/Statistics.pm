@@ -12,11 +12,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.99_1
+Version 0.99_6
 
 =cut
 
-our $VERSION = '0.99_1';
+our $VERSION = '0.99_6';
 
 =head1 SYNOPSIS
 
@@ -106,12 +106,24 @@ Example of Use
 
 =item C<< Router_Remove >>
 
-The function remotes a Router IP from the internal list of usable router. If there is an open
+The function removes a Router IP from the internal list of usable router. If there is an open
 SNMP session, it is closed.
 
 Example of Use
 
     my $result = $test->Router_Remove ( "10.1.1.1" );
+
+=item C<< Router_Remove_All >>
+
+The function removes ALL Router IPs from the internal list of usable router. If there is an open
+SNMP session, it is closed.
+
+Example of Use
+
+    my $result = $test->Router_Remove_All ( );
+
+The function was added so you can switch between blocking and non-blocking objects quickly and 
+without the need to manually delete any routers already setup.
 
 =item C<< Router_Ready >>
 
@@ -442,7 +454,10 @@ my $self = shift;
 my $ip_address = shift;
 
 if ( !$self->{_GLOBAL}{'CPE'}{$ip_address} )
-        { $self->{_GLOBAL}{STATUS}="CPE IP Address Not Added"; return 0; }
+        { 
+	print "IP Address not Added '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+	$self->{_GLOBAL}{STATUS}="CPE IP Address Not Added"; return 0; }
+print "Removing IP Address '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 $self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'}->close();
 delete ($self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'});
 delete ($self->{_GLOBAL}{'CPE'}{$ip_address});
@@ -475,6 +490,7 @@ my ( $session, $error ) =
 if ( $error )
 	{
 	$self->{_GLOBAL}{'STATUS'}=$error;
+	print "Error setting up '$ip_address' is '$error'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 	undef $session;
 	return 0;
 	}
@@ -568,11 +584,15 @@ if ( !$ip_address || !$snmp_key )
 if ( !$timeout )
 	{ $timeout=2; }
 
-$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys'}=join(',',(split(/,/,$snmp_key))[1-10]);
+$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys_to_test'}=join(',',(split(/,/,$snmp_key))[1,2,3,4,5,6,7,8,9,10]);
 $self->{_GLOBAL}{'CPE'}{$ip_address}{'key'}=(split(/,/,$snmp_key))[0];
 $self->{_GLOBAL}{'CPE'}{$ip_address}{'router'}=$router;
 $self->{_GLOBAL}{'CPE'}{$ip_address}{'timeout'}=$timeout;
 $self->{_GLOBAL}{'CPE'}{$ip_address}{'id'} = $cpe_id;
+
+print "Keys left are '".$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys_to_test'}."'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+print "Key is are '".$self->{_GLOBAL}{'CPE'}{$ip_address}{'key'}."'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+
 return 1;
 }
 
@@ -588,6 +608,17 @@ if ( !$ip_address || !$snmp_key )
 if ( !$timeout ) { $timeout=2; }
 $self->{_GLOBAL}{'Router'}{$ip_address}{'key'}=$snmp_key;
 $self->{_GLOBAL}{'Router'}{$ip_address}{'timeout'}=$timeout;
+return 1;
+}
+
+sub Router_Remove_All
+{
+my $self = shift;
+my $all_routers = $self->Router_Return_All();
+foreach my $router ( keys %{$all_routers} )
+	{
+	$self->Router_Remove($router);
+	}
 return 1;
 }
 
@@ -2930,32 +2961,46 @@ sub CPE_Test_Connection
 {
 my $self = shift;
 my $data = shift;
-my $current_cpes = $self ->CPE_Return_All();
+my $current_cpes = $self->CPE_Return_All();
 
 my $snmp_variables = Router::Statistics::OID->Host_populate_oid();
 foreach my $ip_address ( keys %{$current_cpes} )
         {
+	print "IP is '$ip_address' session is '".$self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'}."'\n" 
+			if $self->{_GLOBAL}{'DEBUG'}==1;
         next if !$self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'};
+	print "First pass of '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
         $self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'}->
                 get_request(
                         -callback       => [ \&validate_callback, $ip_address, $data, $snmp_variables ],
                         -varbindlist => [ ${$snmp_variables}{'sysUpTime'} ]);
+	if  ( $self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'}->error )
+		{
+		print "Error was '".$self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'}->error."'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+		}
         }
 snmp_dispatcher();
 # We have done all the first keys in one go, so we should be left with devices that either have
 # had two (or more) keys specified or none left.
 foreach my $ip_address ( keys %{$current_cpes} )
         {
-        while ( !${$data}{$ip_address}{'sysUpTime'} && $self->{_GLOBAL}{'CPE'}{$ip_address}{'keys'} )
+	print "Now we are here , so '$ip_address' uptime '${$data}{$ip_address}{'sysUpTime'}' keys '".$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys_to_test'}."'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+        while ( !${$data}{$ip_address}{'sysUpTime'} && $self->{_GLOBAL}{'CPE'}{$ip_address}{'keys_to_test'} )
                 {
+		print "No uptime for '$ip_address' but we appear to have keys '".$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys'}."'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 		$self->{_GLOBAL}{'CPE'}{$ip_address}{'key'}=
-			(split(/,/,$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys'}))[0];
-		$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys'}=join(',',
-			(split(/,/,$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys'}))[1-10]);
+			(split(/,/,$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys_to_test'}))[0];
+		$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys_to_test'}=join(',',
+			(split(/,/,$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys_to_test'}))[1,2,3,4,5,6,7,8,9,10]);
+
+		print "Next key is '".$self->{_GLOBAL}{'CPE'}{$ip_address}{'key'}."'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+		print "Left key is '".$self->{_GLOBAL}{'CPE'}{$ip_address}{'keys_to_test'}."'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+
                	$self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'}->close();
                	$self->CPE_Ready ( $ip_address );
                 if ( $self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'} )
        	                {
+			print "Attempting check again for '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
        	                $self->{_GLOBAL}{'CPE'}{$ip_address}{'SESSION'}->
        	                        get_request(
        	                                -callback       => [ \&validate_callback, $ip_address, $data, $snmp_variables ],
@@ -2969,6 +3014,7 @@ foreach my $ip_address ( keys %{$current_cpes} )
         {
         if ( !${$data}{$ip_address}{'sysUpTime'} )
                 {
+		print "Removing the CPE '$ip_address' no valid key found\n" if $self->{_GLOBAL}{'DEBUG'}==1;
                 $self->CPE_Remove($ip_address);
                 }
         }

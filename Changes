@@ -1,5 +1,8 @@
 Revision history for Router-Statistics
-
+0.99_6	15/1/2007
+	Fixed the CPE key cycling code ( again and it now works , I promise ) and added
+	an example into the examples directory on how it works.
+	Started to add 'DEBUG' references into the code.
 0.99	9/1/2007
 	Added the option for 'enable' password for telnet command ( currently only stm )
 	however will be making 'generic' attributes for username/password and enable
