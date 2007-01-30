@@ -12,11 +12,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.99_6
+Version 0.99_7
 
 =cut
 
-our $VERSION = '0.99_6';
+our $VERSION = '0.99_7';
 
 =head1 SYNOPSIS
 
@@ -2283,7 +2283,7 @@ if ( $data_selector=~/QOSPROFILE/i || $data_selector=~/ALL/i )
 	foreach my $ip_address ( keys %{$current_ubrs} )
 		{
 		next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-		for ($check_loop=0;$check_loop<50;$check_loop++)
+		for ($check_loop=0;$check_loop<100;$check_loop++)
 			{
 			my $sider=${$snmp_variables}{'docsIfCmtsServiceQosProfile'}.".".$check_loop;
 			my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->

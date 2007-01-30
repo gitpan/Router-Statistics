@@ -1,4 +1,6 @@
 Revision history for Router-Statistics
+0.99_7	30/1/2007
+	Small bug in the QOSPROFILE return for the ifPersist configuration bug.
 0.99_6	15/1/2007
 	Fixed the CPE key cycling code ( again and it now works , I promise ) and added
 	an example into the examples directory on how it works.
