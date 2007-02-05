@@ -8,9 +8,9 @@ Router::Statistics::OID - OID Module for Router::Statistics
 
 =head1 VERSION
 
-Version 1.34
+Version 1.35
 
-our $VERSION = '1.34';
+our $VERSION = '1.35';
 
 =head1 SYNOPSIS
 
@@ -69,6 +69,8 @@ my %snmp_usable_oid =
 		'ifPhysAddress'			=>	'1.3.6.1.2.1.2.2.1.6.1',
 		'DownStreamFrequency'		=>	'1.3.6.1.2.1.10.127.1.1.1.1.2.3',
 		'DownStreamWidth'		=>	'1.3.6.1.2.1.10.127.1.1.1.1.3.3',
+		'UpStreamFrequency'		=>	'1.3.6.1.2.1.10.127.1.1.2.1.2.4',
+		'UpStreamWidth'			=>	'1.3.6.1.2.1.10.127.1.1.2.1.3.4',
 		'SoftwareVersion'		=>	'1.3.6.1.2.1.69.1.3.5.0',
 		'DOCSISFileName'		=>	'1.3.6.1.2.1.69.1.4.5.0',
 		'DOCSISUpstreamWidth'   	=>      '1.3.6.1.2.1.10.127.1.1.3.1.3.1',

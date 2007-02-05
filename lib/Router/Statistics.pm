@@ -12,11 +12,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.99_7
+Version 0.99_9
 
 =cut
 
-our $VERSION = '0.99_7';
+our $VERSION = '0.99_9';
 
 =head1 SYNOPSIS
 
@@ -965,7 +965,7 @@ foreach my $router ( keys %{$data} )
                                 }
                         }
 
-                 $output .="$router,${$router_data}{$router}{'hostName'},${$interface_data}{$router}{$interface}{'ifDescr'},$local,$remote,$router_owners{$remote},${$router_data}{$router_owners{$remote}}{'hostName'},$netmask,${$interface_data}{$router}{$interface}{'ifAdminStatus'},${$interface_data}{$router}{$interface}{'ifOperStatus'},${$interface_data}{$router}{$interface}{'ifAlias'}\n";
+                 $output .="$router,${$router_data}{$router}{'hostName'},$interface,${$interface_data}{$router}{$interface}{'ifDescr'},$local,$remote,$router_owners{$remote},${$router_data}{$router_owners{$remote}}{'hostName'},$netmask,${$interface_data}{$router}{$interface}{'ifAdminStatus'},${$interface_data}{$router}{$interface}{'ifOperStatus'},${$interface_data}{$router}{$interface}{'ifAlias'}\n";
                 }
         }
 
@@ -2016,7 +2016,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
         foreach my $interface ( keys %{${$data}{$ip_address}} )
                 {
 		${$data}{$ip_address}{$interface}{'docsIfDownChannelModulation'}=
-			( '0_Unknown', '1_other', '2_qam64', '3_qam256' )
+			( '0_Down' , '1_Unknown', '2_other', '3_qam64', '4_qam256' )
 			[${$data}{$ip_address}{$interface}{'docsIfDownChannelModulation'}];
                 }
         }
@@ -2051,7 +2051,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
         foreach my $interface ( keys %{${$data}{$ip_address}} )
                 {
                 ${$data}{$ip_address}{$interface}{'docsIfDownChannelModulation'}=
-                        ( '0_Unknown', '1_other', '2_qam64', '3_qam256' )
+                        ( '0_Down', '1_Unknown', '2_other', '3_qam64', '4_qam256' )
                         [${$data}{$ip_address}{$interface}{'docsIfDownChannelModulation'}];
                 }
         }
