@@ -12,11 +12,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.99_9
+Version 0.99_91
 
 =cut
 
-our $VERSION = '0.99_9';
+our $VERSION = '0.99_91';
 
 =head1 SYNOPSIS
 
@@ -419,6 +419,31 @@ a devices expiry time is after the end of the STM window, it does not go into th
 
 =item C<< Export_7600_Port_Inventory >>
 
+=item c<< set_format >>
+
+    This function sets the format of the date/time output used in the STM
+functions. The default is 
+
+    <year> <MonName> <day> <HH>:<MM>:<SS>
+
+    The format can include the following
+
+    <Year>	- 4 number year ie. 2007
+    <MonName>	- Name of the Month, ie January
+    <Mon>	- Number of the Month ie. 1 for January
+    <Day>	- Day of the month ie. 21
+    <HH>	- The hour ie. 10 or 22 ( am or pm )
+    <MM>	- The minute
+    <SS>	- The second
+
+Example of Use
+
+    use Router::Statistics;
+    use strict;
+
+    my $test= new Router::Statistics;
+    my $result = $test->set_format("<Year> <Mon> <Day> <HH>:<MM>:<SS>");
+
 =cut
 
 sub new {
@@ -432,6 +457,8 @@ sub new {
 		{ $self->{_GLOBAL}{$field}=$val; }
 
 	$self->{_GLOBAL}{'STATUS'}="OK";
+
+	$self->set_format();
 
         return $self;
 }
@@ -1003,11 +1030,11 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 	foreach my $instance ( keys %{${$data}{$ip_address}} )
 		{
 		${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateMacAddr'}=
-			_convert_mac_address( ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateMacAddr'} );
+			$self->convert_mac_address( ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateMacAddr'} );
 		${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateLastDetectTime'}=
-			_convert_time_mask( ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateLastDetectTime'} );
+			$self->convert_time_mask( ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateLastDetectTime'} );
 		${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolatePenaltyExpTime'}=
-			_convert_time_mask( ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolatePenaltyExpTime'} );
+			$self->convert_time_mask( ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolatePenaltyExpTime'} );
 		}
 	}
 return 1;
@@ -1044,10 +1071,10 @@ foreach my $ip_address ( keys %{$current_ubrs} )
                         { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateMacAddr'}=_convert_mac_address($bar); }
 
                 if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateLastDetectTime'}.(\d+).(\d+)/ )
-                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateLastDetectTime'}=_convert_time_mask($bar); }
+                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateLastDetectTime'}=$self->convert_time_mask($bar); }
 
                 if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolatePenaltyExpTime'}.(\d+).(\d+)/ )
-                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolatePenaltyExpTime'}=_convert_time_mask($bar); }
+                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolatePenaltyExpTime'}=$self->convert_time_mask($bar); }
 
                 if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateRuleName'}.(\d+).(\d+)/ )
                         { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateRuleName'}=$bar; }
@@ -3022,29 +3049,46 @@ foreach my $ip_address ( keys %{$current_cpes} )
 return 1;
 }
 
-sub _convert_time_mask
+sub set_format
 {
-my ($raw_input, $format)=@_;
-if (!$format )
-	{ $format="<MonName><day> <HH>:<MM>:<SS>"; }
-my ( $char1, $char2, $char3, $char4, $char5, $char6, $char7, $char8, $char9, $char10) = unpack ('nCCCCCCCCC', $raw_input);
+my $self = shift;
+my $data = shift;
+if ( !$data )
+	{ $data="<year> <MonName> <day> <HH>:<MM>:<SS>"; }
+$self->{_GLOBAL}{'DATETIME_FORMAT'}=$data;
+return 1;
+}
 
+sub get_format
+{
+my $self = shift;
+return $self->{_GLOBAL}{'DATETIME_FORMAT'};
+}
+
+
+sub convert_time_mask
+{
+my $self = shift;
+my $raw_input = shift;
+my $format = $self->get_format();
+my ( $char1, $char2, $char3, $char4, $char5, $char6, $char7, $char8, $char9, $char10) = unpack ('nCCCCCCCCC', $raw_input);
 my $month_name = ( 'Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec')[ $char2-1 ];
-my $month = $char2;
-my $year = $char1;
-my $day = $char3;
+
+my $month = sprintf("%.2d",$char2);
+my $year = sprintf("%.4d",$char1);
+my $day = sprintf("%.2d",$char3);
 my $hour = sprintf("%.2d",$char4);
 my $minute = sprintf("%.2d",$char5);
 my $second = sprintf("%.2d",$char6);
 
-$format =~s/\<year\>/$year/g;
-$format =~s/\<MonName\>/$month_name/g;
-$format =~s/\<Mon\>/$month/g;
-$format =~s/\<day\>/$day/g;
+$format =~s/\<year\>/$year/ig;
+$format =~s/\<MonName\>/$month_name/ig;
+$format =~s/\<Mon\>/$month/ig;
+$format =~s/\<day\>/$day/ig;
 
-$format =~s/\<HH\>/$hour/g;
-$format =~s/\<MM\>/$minute/g;
-$format =~s/\<SS\>/$second/g;
+$format =~s/\<HH\>/$hour/ig;
+$format =~s/\<MM\>/$minute/ig;
+$format =~s/\<SS\>/$second/ig;
 
 return ( $format );
 }

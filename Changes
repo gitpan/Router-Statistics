@@ -1,4 +1,7 @@
 Revision history for Router-Statistics
+0.99_91	27/3/2007
+	Added access to the format modifier for STM output and changed the default to
+	include year.
 0.99_9  5/2/2007
 	Downstream modulation type incorrect. Offset of array incorrect causing
 	incorrect modulations to be transformed.
