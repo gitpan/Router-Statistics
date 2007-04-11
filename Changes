@@ -1,4 +1,8 @@
 Revision history for Router-Statistics
+0.99_92 31/3/2007
+	Added in the module telnet to default to return, not die. Previously any wrapper
+	script was setting this, but has caused some confusion why certain scripts
+	failed and otherS returned normally.
 0.99_91	27/3/2007
 	Added access to the format modifier for STM output and changed the default to
 	include year.

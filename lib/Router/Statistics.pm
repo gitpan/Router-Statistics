@@ -12,11 +12,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.99_91
+Version 0.99_92
 
 =cut
 
-our $VERSION = '0.99_91';
+our $VERSION = '0.99_92';
 
 =head1 SYNOPSIS
 
@@ -1097,6 +1097,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
         		my $router_t = new Net::Telnet (Timeout => 20,
                                         Telnetmode => 0,
                                         Prompt => "/^Username :|Password :|$safe_router_name/" );
+			my $error_change = $router_t->errmode("return");
 			my $login_router = $router_t->open( $ip_address );
 	        	if ( $login_router )
 				{
