@@ -7,9 +7,9 @@ use strict;
 
 my (%inventory, %routers, %final_result_set, %telnet_inventory );
 my $result;
-my $test= new Router::Statistics;
+my $test= new Router::Statistics ( [DEBUG=>1] );
 
-my @router_list = qw [ 10.1.1.1:public 10.1.1.2:public ];
+my @router_list = qw [ 10.1.1.1:public ];
 
 foreach my $router ( @router_list )
 	{
@@ -28,7 +28,9 @@ $result = $test->UBR_get_stm_Blocking(
 		\%routers, 
 		\%inventory, 
 		\%inventory_telnet, 
-		"loginname", "loginpassword" );
+		"test", "test" );
+
+exit(0);
 
 #Now we have both sets of data, lets merge them
 

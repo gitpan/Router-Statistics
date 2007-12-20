@@ -1,4 +1,17 @@
 Revision history for Router-Statistics
+0.99_97 20/12/2007
+	Modified the STM polling code.
+	Now the STM gather code gets the STM profiles and their definitions to determine
+	if the the router should be polled. NTP *MUST* be configured on the router so that
+	the time the UBR thinks it is can be checked against the STM window.
+0.99_96	17/12/2007
+	Added DOCSIS modulation profiles.
+0.99_95	15/12/2007
+	Started to add service flow, DOCSIS 1.1/2/3, information
+0.99_94	10/9/2007
+	Fixed some OID entries in the OID.pm
+0.99_93	3/4/2007
+	Cleaned up some code.
 0.99_92 31/3/2007
 	Added in the module telnet to default to return, not die. Previously any wrapper
 	script was setting this, but has caused some confusion why certain scripts

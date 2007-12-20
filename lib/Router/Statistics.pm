@@ -2,6 +2,7 @@ package Router::Statistics;
 
 use strict;
 use Router::Statistics::OID;
+use Time::localtime;
 use Net::SNMP qw (:snmp :asn1);
 use Net::Telnet;
 use MIME::Base64;
@@ -12,11 +13,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.99_92
+Version 0.99_977
 
 =cut
 
-our $VERSION = '0.99_92';
+our $VERSION = '0.99_977';
 
 =head1 SYNOPSIS
 
@@ -227,15 +228,45 @@ Example of Use
 
 =item C<< CPE_Add >>
 
-No detail given.
+This function adds a CPE IP, Community String and Timeout to the internal list of CPEs that can
+be polled for information. All CPE polling is non blocking and also currently requires a unique ID.
+
+It is possible to specify multiple community strings and these will be used in turn should
+no response be received, until no more can be tried.
+
+    CPE_Add ( "<ip>", "<community>", "<router IP>", "<unique ID>", <timeout> );
+
+Example of Use
+
+    my $result = $test->CPE_Add( "10.1.2.100" , "public,testing,hello","10.1.1.1","dr3423d3",2 );
 
 =item C<< CPE_Remove >>
 
-No detail given.
+The function removes a CPE from the internal list of usable CPEs. If there is an open
+SNMP session, it is closed.
+
+    CPE_Remove ("<ip>")
+
+Example of Use
+
+    my $result = $test->CPE_Remove ( "10.1.2.100" );
 
 =item C<< CPE_Ready >>
 
-No detail given.
+This function sets up the SNMP session object for the CPE IP specified. This is for the non
+blocking function set. (CPE functions do not have non-blocking counterparts)
+
+    CPE_Ready ("<ip>", [ array containing OIDs of the SNMP variables to get ] )
+
+Example of Use
+
+    my $result = $test-> CPE_Ready ( 
+			"10.1.2.100",
+			[ 1.3.6.1.2.1.1.3.0 , 1.3.6.1.2.1.1.1.0 ] );
+
+    This would retrieve sysUptime and sysDescr for the CPE when the collection functions are
+called. You can of course use the references in the OID module provided with this module so
+you can use names instead of OIDs.
 
 =item C<< CPE_Return_All >>
 
@@ -271,17 +302,45 @@ No detail given.
 
 =item C<< CPE_gather_all_data >>
 
-No detail given.
+This function attempts to collect the CPE data previously configured with CPE_Ready. The
+function attempts to use non blocking functionality to do this as quickly as possible,
+however the more OIDs to collect per CPE the longer it will take.
 
-=item C<< get_CPE_info_dead ** DO NOT USE IS NOT COMPLETE >>
+Preliminary testing shows the 5000 CPE devices can be polled, with 4 OIDs each, in 45
+seconds, making it relatively painless when polling large scale networks.
 
-No detail given.
+When using this function and using multiple community strings will cause a significant
+slowing of performance.
+
+The function requires a pointer to a hash
+
+    CPE_gather_all_data ( <hash pointer> )
+
+Example of Use
+
+    my $result = $test-> CPE_gather_all_data (
+				\%cpe_data 
+				);
+
+    The result is rooted by the unique ID and contains the OIDs, converted to name,
+with their results. If the CPE is NOT in this hash then it was not successfully 
+contacted.
+
+    CPE Hash
+        -- Unique ID
+           --  OID (converted to name)
+           --  OID (converted to name)
+           --  etc
 
 =item C<< CPE_Test_Connection >>
 
-No detail given.
-
 =item C<< Get_UBR_Inventory >>
+
+This has been replaced with
+
+UBR_get_Inventory
+
+This function remains for backward compatibility.
 
 =item C<< Export_UBR_Slot_Inventory >>
 
@@ -1005,36 +1064,104 @@ sub UBR_get_stm
 # as it should not really be run anyway and it would only be a repition
 # of code.
 my $self = shift;
-my $data = shift;
 my $router_info = shift;
+my $data = shift;
+my $telnet_data = shift;
 my $username = shift;
 my $password = shift;
+my $enable = shift;
+
+my %priv_time;
 
 my $current_ubrs=$self->Router_Return_All();
 if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
 
 my $snmp_variables = Router::Statistics::OID->STM_populate_oid();
 my $telnet_commands = Router::Statistics::OID->telnet_commands();
+my $time = Router::Statistics::OID->ntp_populate_oid();
+
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+        print "Doing STM MAP for '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+	my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_table(
+                        -callback       => [ \&validate_rule_base, $data, $ip_address, $snmp_variables ],
+                        -baseoid => ${$snmp_variables}{'PRIVATE_stm_rule_base'} );
+        }
+snmp_dispatcher();
+
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+	print "Doing ntp for '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_request (
+			-callback       => [ \&validate_callback, $ip_address, $data, $time],
+			-varbindlist => [ ${$time}{'cntpSysClock'} ] );
+	}
+
+snmp_dispatcher();
+foreach my $ip_address ( keys %{$current_ubrs} )
+        { $self->convert_ntp_time_mask(${$data}{$ip_address}{'cntpSysClock'}, $data, $ip_address ); }
+
+foreach my $ip_address ( keys %{$current_ubrs} )
+	{
+	print "UBR thinks it is Hour is '${$data}{$ip_address}{'time'}{'hour'}' min is '${$data}{$ip_address}{'time'}{'min'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+	foreach my $stm_rules ( keys %{${$data}{$ip_address}{'stm_rule_set'}} )
+		{
+		my $end_hour_time = sprintf("%d",( ${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'} +
+					(${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleDuration'}/60)));
+		if ( ${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}>${$data}{$ip_address}{'time'}{'hour'} )
+			{
+			${$data}{$ip_address}{'stm_rule_not_allowed'}++;
+			print "We are removing '$stm_rules' not started\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+			}
+
+                if ( ${$data}{$ip_address}{'time'}{'hour'}=>${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}
+                        &&
+                        ${$data}{$ip_address}{'time'}{'hour'}<$end_hour_time
+                        &&
+                        (
+                                ${$data}{$ip_address}{'time'}{'hour'}<=($end_hour_time-1) && ${$data}{$ip_address}{'time'}{'min'}<45
+                                        && ${$data}{$ip_address}{'time'}{'hour'}=>${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'} )
+                        )
+			{
+			}
+			else
+			{
+			${$data}{$ip_address}{'stm_rule_not_allowed'}++;
+			print "We are removing '$stm_rules' end point failure\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+			}		
+		}
+	}
 
 foreach my $ip_address ( keys %{$current_ubrs} )
         {
 	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-	my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
-		get_table(
-			-callback       => [ \&validate_two_plain, $data, $ip_address, $snmp_variables ],
-			-baseoid => ${$snmp_variables}{'PRIVATE_stm_base'} );
+	if ( ${$data}{$ip_address}{'stm_rule_not_allowed'}!=scalar( keys %{${$data}{$ip_address}{'stm_rule_set'}} ) )
+		{
+		my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+			get_table(
+				-callback       => [ \&validate_two_plain, $data, $ip_address, $snmp_variables ],
+				-baseoid => ${$snmp_variables}{'PRIVATE_stm_base'} );
+		}
 	}
 snmp_dispatcher();
 foreach my $ip_address ( keys %{$current_ubrs} )
 	{
-	foreach my $instance ( keys %{${$data}{$ip_address}} )
+	if ( ${$data}{$ip_address}{'stm_rule_not_allowed'}!=scalar( keys %{${$data}{$ip_address}{'stm_rule_set'}} ) )
 		{
-		${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateMacAddr'}=
-			$self->convert_mac_address( ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateMacAddr'} );
-		${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateLastDetectTime'}=
-			$self->convert_time_mask( ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateLastDetectTime'} );
-		${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolatePenaltyExpTime'}=
-			$self->convert_time_mask( ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolatePenaltyExpTime'} );
+		foreach my $instance ( keys %{${$data}{$ip_address}} )
+			{
+			next if $instance=~/^cntpSysClock/ig;
+			${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateMacAddr'}=
+				$self->_convert_mac_address( ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateMacAddr'} );
+			${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateLastDetectTime'}=
+				$self->convert_time_mask( ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateLastDetectTime'} );
+			${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolatePenaltyExpTime'}=
+				$self->convert_time_mask( ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolatePenaltyExpTime'} );
+			}
 		}
 	}
 return 1;
@@ -1057,87 +1184,164 @@ my ( $foo, $bar );
 
 my $snmp_variables = Router::Statistics::OID->STM_populate_oid();
 my $telnet_commands = Router::Statistics::OID->telnet_commands();
+my $time = Router::Statistics::OID->ntp_populate_oid();
 
 foreach my $ip_address ( keys %{$current_ubrs} )
         {
         next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+        print "Doing STM MAP for '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
         my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
-                get_table( -baseoid => ${$snmp_variables}{'PRIVATE_stm_base'} );
+                get_table( -baseoid => ${$snmp_variables}{'PRIVATE_stm_rule_base'} );
+	while(($foo, $bar) = each(%{$profile_information}))
+		{
+		my $instance;
+		foreach my $attribute ( keys %{$snmp_variables} )
+			{
+			if ( $attribute!~/^PRIVATE/ )
+				{
+				if ( $foo =~ /^${$snmp_variables}{$attribute}/)
+					{
+		                        my $new_oid=$foo;
+        		                $new_oid=~s/${$snmp_variables}{$attribute}//g;
+        	                	my $name;
+        	                	foreach my $character ( split(/\./,$new_oid) )
+        	                	        { next if $character<15; $name.=chr($character); }
+        	                	$name=~s/^\s*//; $name=~ s/\s*$//;
+                        		${$data}{$ip_address}{'stm_rule_set'}{$name}{$attribute}=$bar;
+					}
+				}
+                        }
+                }
+        }
 
-        while(($foo, $bar) = each(%{$profile_information}))
-                {
-                my $instance;
-                if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateMacAddr'}.(\d+).(\d+)/ )
-                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateMacAddr'}=_convert_mac_address($bar); }
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
 
-                if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateLastDetectTime'}.(\d+).(\d+)/ )
-                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateLastDetectTime'}=$self->convert_time_mask($bar); }
+	my ($time_request)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_request ( -varbindlist => [
+                                ${$time}{'cntpSysClock'} 
+				] );
 
-                if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolatePenaltyExpTime'}.(\d+).(\d+)/ )
-                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolatePenaltyExpTime'}=$self->convert_time_mask($bar); }
+	$self->convert_ntp_time_mask( $time_request->{ ${$time}{'cntpSysClock'} }, $data, $ip_address );
 
-                if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateRuleName'}.(\d+).(\d+)/ )
-                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateRuleName'}=$bar; }
+	print "UBR thinks it is Hour is '${$data}{$ip_address}{'time'}{'hour'}' min is '${$data}{$ip_address}{'time'}{'min'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 
-                if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateByteCount'}.(\d+).(\d+)/ )
-                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateByteCount'}=$bar; }
+	foreach my $stm_rules ( keys %{${$data}{$ip_address}{'stm_rule_set'}} )
+		{
+		print "Rule name is '$stm_rules'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+		print "Start time is '${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+		
+                my $end_hour_time = sprintf("%d",( ${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'} +
+                                        (${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleDuration'}/60)));
 
-                if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateID'}.(\d+).(\d+)/ )
-                        { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateID'}=$bar; }
-                delete ${$profile_information}{$foo};
+		print "End time is '$end_hour_time' \n" if $self->{_GLOBAL}{'DEBUG'}==1;
+
+                if ( ${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}>${$data}{$ip_address}{'time'}{'hour'} )
+                        {
+                        ${$data}{$ip_address}{'stm_rule_not_allowed'}++;
+                        print "We are removing '$stm_rules' not started\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+                        }
+
+                if ( ${$data}{$ip_address}{'time'}{'hour'}=>${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}
+			&& 
+                        ${$data}{$ip_address}{'time'}{'hour'}<$end_hour_time 
+			&&
+                        ( 
+				${$data}{$ip_address}{'time'}{'hour'}<=($end_hour_time-1) && ${$data}{$ip_address}{'time'}{'min'}<45 
+					&& ${$data}{$ip_address}{'time'}{'hour'}=>${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'} )
+			)
+                        {
+                        }
+                        else
+                        {
+                        ${$data}{$ip_address}{'stm_rule_not_allowed'}++;
+                        print "We are removing '$stm_rules' end point failure2\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+                        }
                 }
 
-	if ( $username && $password )
+	if ( ${$data}{$ip_address}{'stm_rule_not_allowed'}!=scalar( keys %{${$data}{$ip_address}{'stm_rule_set'}} ) )
 		{
+		print "We match profiles so can poll for STM.\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+        	my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+        	        get_table( -baseoid => ${$snmp_variables}{'PRIVATE_stm_base'} );
 
-		my $router_name = ${$router_info}{$ip_address}{'hostName'};
-		if ( $router_name )
+ 	       while(($foo, $bar) = each(%{$profile_information}))
+ 	               {
+ 	               my $instance;
+ 	               if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateMacAddr'}.(\d+).(\d+)/ )
+ 	                       { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateMacAddr'}=_convert_mac_address($bar); }
+	
+       		       if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateLastDetectTime'}.(\d+).(\d+)/ )
+        	                { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateLastDetectTime'}=$self->convert_time_mask($bar); }
+	
+        	       if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolatePenaltyExpTime'}.(\d+).(\d+)/ )
+        	                { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolatePenaltyExpTime'}=$self->convert_time_mask($bar); }
+	
+        	       if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateRuleName'}.(\d+).(\d+)/ )
+        	                { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateRuleName'}=$bar; }
+
+        	       if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateByteCount'}.(\d+).(\d+)/ )
+        	                { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateByteCount'}=$bar; }
+
+ 	               if ( $foo=~/^${$snmp_variables}{'ccqmEnfRuleViolateID'}.(\d+).(\d+)/ )
+ 	                       { $instance="$1:$2"; ${$data}{$ip_address}{$instance}{'ccqmEnfRuleViolateID'}=$bar; }
+ 	               delete ${$profile_information}{$foo};
+ 	               }
+
+		if ( $username && $password )
 			{
-			my $safe_router_name=$router_name;
-        		my $router_t = new Net::Telnet (Timeout => 20,
+
+			my $router_name = ${$router_info}{$ip_address}{'hostName'};
+			if ( $router_name )
+				{
+				my $safe_router_name=$router_name;
+        			my $router_t = new Net::Telnet (Timeout => 20,
                                         Telnetmode => 0,
                                         Prompt => "/^Username :|Password :|$safe_router_name/" );
-			my $error_change = $router_t->errmode("return");
-			my $login_router = $router_t->open( $ip_address );
-	        	if ( $login_router )
-				{
-				$router_t->login($username,$password);
-				if ( $enable )
+				my $error_change = $router_t->errmode("return");
+				my $login_router = $router_t->open( $ip_address );
+	        		if ( $login_router )
 					{
-					my $line = $router_t->print("enable");
-					$router_t->waitfor("/Password/");
-					my $line = $router_t->print( $enable );
-					$router_t->waitfor("/$safe_router_name/");
-					}
-				my $stm_command = decode_base64(${$telnet_commands}{'stm_command'});
-				my $line = $router_t->print( decode_base64(${$telnet_commands}{'termline'}) ) ;
-				$router_t->waitfor("/$router_name\#/");
-				my @lines = $router_t->cmd(String => $stm_command ,Prompt  => "/$safe_router_name\#/");
-				$router_t->close();
-				# we need to make sure we handle the multiple domains within the output
-				# as Telnet commands are notorious for providing correct but repeating idents
-				# these need to be mapped into a unique handler. Lets face it though, using
-				# telnet is just a really bad idea.
-				$a=0;
-				foreach my $line ( @lines )
-					{
-					next if $line=~/^$safe_router_name/;
-					next unless $line=~/^[0-9]/;
-					next unless length($line)>10;
-					chop($line);
-					my @fields = (split(/\W*\s+\W*/,$line));
-					my $instance_telnet = "$a".$fields[0];
-					${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateMacAddr'}=$fields[1];
-					${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateRuleName'}=$fields[2];
-					${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateLastDetectTime'}="$fields[4] $fields[5]";
-					${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolatePenaltyExpTime'}="$fields[6] $fields[7]";
-					$a++;
+					$router_t->login($username,$password);
+					if ( $enable )
+						{
+						my $line = $router_t->print("enable");
+						$router_t->waitfor("/Password/");
+						my $line = $router_t->print( $enable );
+						$router_t->waitfor("/$safe_router_name/");
+						}
+					my $stm_command = decode_base64(${$telnet_commands}{'stm_command'});
+					my $line = $router_t->print( decode_base64(${$telnet_commands}{'termline'}) ) ;
+					$router_t->waitfor("/$router_name\#/");
+					my @lines = $router_t->cmd(String => $stm_command ,Prompt  => "/$safe_router_name\#/");
+					$router_t->close();
+					# we need to make sure we handle the multiple domains within the output
+					# as Telnet commands are notorious for providing correct but repeating idents
+					# these need to be mapped into a unique handler. Lets face it though, using
+					# telnet is just a really bad idea.
+					$a=0;
+					foreach my $line ( @lines )
+						{
+						next if $line=~/^$safe_router_name/;
+						next unless $line=~/^[0-9]/;
+						next unless length($line)>10;
+						chop($line);
+						my @fields = (split(/\W*\s+\W*/,$line));
+						my $instance_telnet = "$a".$fields[0];
+						${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateMacAddr'}=$fields[1];
+						${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateRuleName'}=$fields[2];
+						${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateLastDetectTime'}="$fields[4] $fields[5]";
+						${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolatePenaltyExpTime'}="$fields[6] $fields[7]";
+						$a++;
+						}
 					}
 				}
 			}
 		}
+	
 	}
-			
+		
 return 1;
 }
 
@@ -1652,8 +1856,21 @@ return 1;
 }
 
 
-
 sub Get_UBR_Inventory
+{
+my $self = shift;
+my $data = shift;
+$self->UBR_7200_get_Inventory ( $data );
+}
+
+sub Get_UBR_Inventory_Blocking
+{
+my $self = shift;
+my $data = shift;
+$self->UBR_7200_get_Inventory_Blocking ( $data );
+}
+
+sub UBR_7200_get_Inventory
 {
 my $self = shift;
 my $data = shift;
@@ -1694,7 +1911,7 @@ undef %temp;
 return 1;
 }
 
-sub Get_UBR_Inventory_Blocking
+sub UBR_7200_get_Inventory_Blocking
 {
 my $self = shift;
 my $data = shift;
@@ -1899,6 +2116,88 @@ foreach my $ip_address ( keys %temp )
 	${$data}{$ip_address}{'total_slots'}=$2;
         }
 undef %temp;
+return 1;
+}
+
+sub CMTS_get_DOCSIS_profiles
+{
+my $self = shift;
+my $data = shift;
+my $current_ubrs=$self->Router_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
+my $snmp_variables = Router::Statistics::OID->DOCSIS_Modulation();
+
+my %temp;
+
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+	get_table(
+                -callback       => [ \&validate_two, $data, $ip_address, $snmp_variables ],
+                -baseoid => ${$snmp_variables}{'PRIVATE_docsIfCmtsMod_base'} );
+        }
+
+foreach my $ip ( keys %{$data} )
+        {
+        foreach my $profile_id ( keys %{${$data}{$ip}} )
+                {
+                foreach my $attribute ( keys %{${$data}{$ip}{$profile_id}} )
+                        {
+                        if ( $attribute=~/docsIfCmtsModType/i )
+                                {
+                                ${$data}{$ip}{$profile_id}{$attribute}=
+                                        ( '0_unknown' , '1_other', '2_qpsk', '3_qam16',
+                                                '4_qam8', '5_qam32', '6_qam64', '7_qam128' )
+                                                [${$data}{$ip}{$profile_id}{$attribute}];
+                                }
+                        if ( $attribute=~/docsIfCmtsModDifferentialEncoding/i )
+                                {
+                                ${$data}{$ip}{$profile_id}{$attribute}=
+                                        ( '0_unknown', '1_true', '2_false' )
+                                                [${$data}{$ip}{$profile_id}{$attribute}];
+                                }
+                        if ( $attribute=~/docsIfCmtsModLastCodewordShortened/i )
+                                {
+                                ${$data}{$ip}{$profile_id}{$attribute}=
+                                        ( '0_unknown', '1_true', '2_false' )
+                                                [${$data}{$ip}{$profile_id}{$attribute}];
+                                }
+                        if ( $attribute=~/docsIfCmtsModScrambler/i )
+                                {
+                                ${$data}{$ip}{$profile_id}{$attribute}=
+                                        ( '0_unknown', '1_true', '2_false' )
+                                                [${$data}{$ip}{$profile_id}{$attribute}];
+                                }
+                        if ( $attribute=~/docsIfCmtsModPreambleType/i )
+                                {
+                                ${$data}{$ip}{$profile_id}{$attribute}=
+                                        ( '0_unknown', '1_qpsk0', '2_qpsk1' )
+                                                [${$data}{$ip}{$profile_id}{$attribute}];
+                                }
+                        if ( $attribute=~/docsIfCmtsModTcmErrorCorrectionOn/i )
+                                {
+                                ${$data}{$ip}{$profile_id}{$attribute}=
+                                        ( '0_unknown', '1_true', '2_false' )
+                                                [${$data}{$ip}{$profile_id}{$attribute}];
+                                }
+                        if ( $attribute=~/docsIfCmtsModScdmaSpreaderEnable/i )
+                                {
+                                ${$data}{$ip}{$profile_id}{$attribute}=
+                                        ( '0_unknown', '1_true', '2_false' )
+                                                [${$data}{$ip}{$profile_id}{$attribute}];
+                                }
+                        if ( $attribute=~/docsIfCmtsModChannelType/i )
+                                {
+                                ${$data}{$ip}{$profile_id}{$attribute}=
+                                        ( '0_unknown', '1_tdma', '2_atdma', '3_scdma','4_tdmaAndAtdma' )
+                                                [${$data}{$ip}{$profile_id}{$attribute}];
+                                }
+                        }
+                }
+        }
+
+snmp_dispatcher();
 return 1;
 }
 
@@ -3066,6 +3365,21 @@ my $self = shift;
 return $self->{_GLOBAL}{'DATETIME_FORMAT'};
 }
 
+sub convert_ntp_time_mask
+{
+my $self = shift;
+my $raw_input = shift;
+my $data = shift;
+my $ip_address = shift;
+my ( $time_ticks, $resolution ) = unpack ('NN', $raw_input );
+$time_ticks -= 2208988800;
+my $gm = localtime($time_ticks);
+my $time = sprintf("%.2d:%.2d",$gm->hour(),$gm->min());
+${$data}{$ip_address}{'time'}{'hour'}=sprintf("%.2d",$gm->hour());
+${$data}{$ip_address}{'time'}{'min'}=sprintf("%.2d",$gm->min());
+${$data}{$ip_address}{'time'}{'epoch'}=$time_ticks;
+return 1;
+}
 
 sub convert_time_mask
 {
@@ -3224,6 +3538,35 @@ foreach my $oid (oid_lex_sort(keys(%{$session->var_bind_list})))
 	
 return 1;
 }
+
+sub validate_rule_base
+{
+my ($session, $table, $ip_address, $snmp_variables ) = @_;
+foreach my $oid (oid_lex_sort(keys(%{$session->var_bind_list})))
+        {
+        foreach my $attribute ( keys %{$snmp_variables} )
+                {
+                next if $attribute=~/^PRIVATE/;
+                if ( $oid =~ /^${$snmp_variables}{$attribute}\./)
+                        {
+			my $new_oid=$oid;
+			$new_oid=~s/${$snmp_variables}{$attribute}//g;
+			#print "New oid is '$new_oid'\n";
+			#print "New oid is '$new_oid' value is '".$session->var_bind_list->{$oid}."'\n";
+			my $name;
+			foreach my $character ( split(/\./,$new_oid) )
+				{ next if $character<15; $name.=chr($character); }
+			$name=~s/^\s*//; $name=~ s/\s*$//;
+			#print "Name is '$name'\n";
+                        ${$table}{$ip_address}{'stm_rule_set'}{$name}{$attribute}=$session->var_bind_list->{$oid};
+#			${$table}{$ip_address}{'name'}=$name;
+                        }
+                }
+        delete ( $session->var_bind_list->{$oid} );
+        }
+return 1;
+}
+
 
 sub validate_two_plain
 {
@@ -3394,7 +3737,7 @@ SNMP.
 
 =head1 COPYRIGHT & LICENSE
 
-Copyright 2006 Andrew S. Kennedy, all rights reserved.
+Copyright 2007 Andrew S. Kennedy, all rights reserved.
 
 This program is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
