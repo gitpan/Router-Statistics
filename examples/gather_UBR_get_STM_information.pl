@@ -9,7 +9,7 @@ my (%inventory, %routers, %final_result_set, %telnet_inventory );
 my $result;
 my $test= new Router::Statistics ( [DEBUG=>1] );
 
-my @router_list = qw [ 10.1.1.1:public ];
+my @router_list = qw [ 80.194.79.222:public ];
 
 foreach my $router ( @router_list )
 	{
@@ -28,7 +28,7 @@ $result = $test->UBR_get_stm_Blocking(
 		\%routers, 
 		\%inventory, 
 		\%inventory_telnet, 
-		"test", "test" );
+		"andyk", "wibble" );
 
 exit(0);
 

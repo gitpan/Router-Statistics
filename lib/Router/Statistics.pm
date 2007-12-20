@@ -13,11 +13,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.99_977
+Version 0.99_978
 
 =cut
 
-our $VERSION = '0.99_977';
+our $VERSION = '0.99_978';
 
 =head1 SYNOPSIS
 
@@ -1122,9 +1122,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
                         &&
                         ${$data}{$ip_address}{'time'}{'hour'}<$end_hour_time
                         &&
-                        (
-                                ${$data}{$ip_address}{'time'}{'hour'}<=($end_hour_time-1) && ${$data}{$ip_address}{'time'}{'min'}<45
-                                        && ${$data}{$ip_address}{'time'}{'hour'}=>${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'} )
+                        ( ${$data}{$ip_address}{'time'}{'hour'}<=($end_hour_time-1) && ${$data}{$ip_address}{'time'}{'min'}<45 )
                         )
 			{
 			}
@@ -1229,13 +1227,13 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 
 	foreach my $stm_rules ( keys %{${$data}{$ip_address}{'stm_rule_set'}} )
 		{
-		print "Rule name is '$stm_rules'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
-		print "Start time is '${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+		print "Rule name2 is '$stm_rules'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+		print "Start time2 is '${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 		
                 my $end_hour_time = sprintf("%d",( ${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'} +
                                         (${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleDuration'}/60)));
 
-		print "End time is '$end_hour_time' \n" if $self->{_GLOBAL}{'DEBUG'}==1;
+		print "End time2 is '$end_hour_time'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 
                 if ( ${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}>${$data}{$ip_address}{'time'}{'hour'} )
                         {
@@ -1243,13 +1241,14 @@ foreach my $ip_address ( keys %{$current_ubrs} )
                         print "We are removing '$stm_rules' not started\n" if $self->{_GLOBAL}{'DEBUG'}==1;
                         }
 
+		print "hour is '${$data}{$ip_address}{'time'}{'hour'}' start is '${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}'\n";
+		print "end is '".($end_hour_time-1)."' min is '${$data}{$ip_address}{'time'}{'min'}'\n";
+
                 if ( ${$data}{$ip_address}{'time'}{'hour'}=>${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}
 			&& 
                         ${$data}{$ip_address}{'time'}{'hour'}<$end_hour_time 
 			&&
-                        ( 
-				${$data}{$ip_address}{'time'}{'hour'}<=($end_hour_time-1) && ${$data}{$ip_address}{'time'}{'min'}<45 
-					&& ${$data}{$ip_address}{'time'}{'hour'}=>${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'} )
+                        ( ${$data}{$ip_address}{'time'}{'hour'}<=($end_hour_time-1) && ${$data}{$ip_address}{'time'}{'min'}<45 )
 			)
                         {
                         }
@@ -1262,7 +1261,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 
 	if ( ${$data}{$ip_address}{'stm_rule_not_allowed'}!=scalar( keys %{${$data}{$ip_address}{'stm_rule_set'}} ) )
 		{
-		print "We match profiles so can poll for STM.\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+		print "We match profiles so can poll for STM2.\n" if $self->{_GLOBAL}{'DEBUG'}==1;
         	my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
         	        get_table( -baseoid => ${$snmp_variables}{'PRIVATE_stm_base'} );
 
@@ -3373,6 +3372,8 @@ my $data = shift;
 my $ip_address = shift;
 my ( $time_ticks, $resolution ) = unpack ('NN', $raw_input );
 $time_ticks -= 2208988800;
+#$time_ticks = 1198184334;
+#print "Time ticks is '$time_ticks'\n";
 my $gm = localtime($time_ticks);
 my $time = sprintf("%.2d:%.2d",$gm->hour(),$gm->min());
 ${$data}{$ip_address}{'time'}{'hour'}=sprintf("%.2d",$gm->hour());
