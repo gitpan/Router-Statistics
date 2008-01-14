@@ -1,10 +1,24 @@
 Revision history for Router-Statistics
-0.99_97 20/12/2007
+0.99_981 11/01/2008
+	Fixed up some of the dubious coding that has crept in.
+
+	Ripped out all the DOCSIS1.1/3 service flow code.
+
+0.99_980 21/12/2007
+	Fixed some Blocking functions to be comparable to non blocking
+	Added Router 'alive' check after STM Blocking has polled a router
+	Added single mac change for DOCSIS1.0 speeds ( Cisco only )
+	Added DOCSIS1.1/DOCSIS3 service flow capture by MAC
+		Added capture all devices, flow speeds, and usage, packets/octets
+		Added capture for specific MAC address
+		Service flow information is 32 bit (arrgg!!)
+	Added the need for some IO modules in preparation to adding IPDR support
+0.99_978 20/12/2007
 	Modified the STM polling code.
 	Now the STM gather code gets the STM profiles and their definitions to determine
 	if the the router should be polled. NTP *MUST* be configured on the router so that
 	the time the UBR thinks it is can be checked against the STM window.
-0.99_96	17/12/2007
+0.99_977 17/12/2007
 	Added DOCSIS modulation profiles.
 0.99_95	15/12/2007
 	Started to add service flow, DOCSIS 1.1/2/3, information

@@ -6,6 +6,10 @@ use Time::localtime;
 use Net::SNMP qw (:snmp :asn1);
 use Net::Telnet;
 use MIME::Base64;
+use IO::Select;
+use IO::Socket;
+use IO::File;
+use POSIX;
 
 =head1 NAME
 
@@ -13,11 +17,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.99_978
+Version 0.99_981
 
 =cut
 
-our $VERSION = '0.99_978';
+our $VERSION = '0.99_981';
 
 =head1 SYNOPSIS
 
@@ -720,16 +724,6 @@ delete ( $self->{_GLOBAL}{'Router'}{$ip_address} );
 return 1;
 }
 
-sub CPE_Remove
-{
-my $self = shift;
-my $ip_address = shift;
-if ( !$ip_address )
-	{ $self->{_GLOBAL}{STATUS}="No IP Address Specified."; return 0; }
-delete ( $self->{_GLOBAL}{'CPE'}{$ip_address} );
-return 1;
-}
-
 sub CPE_export_import_fields
 {
 my $self = shift;
@@ -941,7 +935,6 @@ foreach my $ip_address ( keys %{$current_ubrs} )
         }
 snmp_dispatcher();
 
-my $snmp_variables = Router::Statistics::OID->Router_Link_Map_oid();
 foreach my $ip_address ( keys %{$current_ubrs} )
         {
         next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
@@ -1118,7 +1111,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 			print "We are removing '$stm_rules' not started\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 			}
 
-                if ( ${$data}{$ip_address}{'time'}{'hour'}=>${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}
+                if ( ${$data}{$ip_address}{'time'}{'hour'}>=${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}
                         &&
                         ${$data}{$ip_address}{'time'}{'hour'}<$end_hour_time
                         &&
@@ -1141,7 +1134,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 		{
 		my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 			get_table(
-				-callback       => [ \&validate_two_plain, $data, $ip_address, $snmp_variables ],
+				-callback=> [ \&validate_two_plain, $data, $ip_address, $snmp_variables ],
 				-baseoid => ${$snmp_variables}{'PRIVATE_stm_base'} );
 		}
 	}
@@ -1223,7 +1216,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 
 	$self->convert_ntp_time_mask( $time_request->{ ${$time}{'cntpSysClock'} }, $data, $ip_address );
 
-	print "UBR thinks it is Hour is '${$data}{$ip_address}{'time'}{'hour'}' min is '${$data}{$ip_address}{'time'}{'min'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+	print "UBR thinks its Hour is '${$data}{$ip_address}{'time'}{'hour'}' min is '${$data}{$ip_address}{'time'}{'min'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 
 	foreach my $stm_rules ( keys %{${$data}{$ip_address}{'stm_rule_set'}} )
 		{
@@ -1241,10 +1234,10 @@ foreach my $ip_address ( keys %{$current_ubrs} )
                         print "We are removing '$stm_rules' not started\n" if $self->{_GLOBAL}{'DEBUG'}==1;
                         }
 
-		print "hour is '${$data}{$ip_address}{'time'}{'hour'}' start is '${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}'\n";
-		print "end is '".($end_hour_time-1)."' min is '${$data}{$ip_address}{'time'}{'min'}'\n";
+		print "hour is '${$data}{$ip_address}{'time'}{'hour'}' start is '${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+		print "end is '".($end_hour_time-1)."' min is '${$data}{$ip_address}{'time'}{'min'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 
-                if ( ${$data}{$ip_address}{'time'}{'hour'}=>${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}
+                if ( ${$data}{$ip_address}{'time'}{'hour'}>=${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}
 			&& 
                         ${$data}{$ip_address}{'time'}{'hour'}<$end_hour_time 
 			&&
@@ -1307,7 +1300,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 						{
 						my $line = $router_t->print("enable");
 						$router_t->waitfor("/Password/");
-						my $line = $router_t->print( $enable );
+						$line = $router_t->print( $enable );
 						$router_t->waitfor("/$safe_router_name/");
 						}
 					my $stm_command = decode_base64(${$telnet_commands}{'stm_command'});
@@ -1320,7 +1313,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 					# these need to be mapped into a unique handler. Lets face it though, using
 					# telnet is just a really bad idea.
 					$a=0;
-					foreach my $line ( @lines )
+					foreach $line ( @lines )
 						{
 						next if $line=~/^$safe_router_name/;
 						next unless $line=~/^[0-9]/;
@@ -1337,8 +1330,19 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 					}
 				}
 			}
+		# recheck router is still up, after a poll ?
+		# we can not do this in non blocking mode, alas.
+		#
+		my ($time_request)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+			get_request ( -varbindlist => [ ${$time}{'cntpSysClock'} ] );
+		if (  $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->error )
+			{
+			# We failed to get ntp time from the router we just polled.
+			# we stop all polling and return out.
+			print "Router failed to return after STM poll we are exiting.\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+			return 1;
+			}
 		}
-	
 	}
 		
 return 1;
@@ -1451,7 +1455,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 		delete ${$profile_information}{$foo};
 		}
 
-        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+        ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
                 get_table(
                 -baseoid => ${$snmp_variables}{'ifAlias'} );
         while(($foo, $bar) = each(%{$profile_information}))
@@ -1933,7 +1937,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
                 delete ${$profile_information}{$foo};
                 }
 
-	my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+	($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 		get_request ( -varbindlist => [
 				${$int_snmp_variables}{'sysDescr'},
 				${$int_snmp_variables}{'entPhysicalDescr.1'},
@@ -2207,7 +2211,7 @@ my $self = shift;
 my $data = shift;
 # ie
 #
-# $result = $Object -> get_DOCSIS_upstream_interaces ( \%upstream_interfaces );
+# $result = $Object -> get_DOCSIS_upstream_interfaces ( \%upstream_interfaces );
 #
 # $result contains 1 or 0 for 1 = success, 0 = failure.
 
@@ -2222,6 +2226,17 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 		get_table(
 			-callback       => [ \&validate_one, $data, $ip_address, $snmp_variables ],
 			-baseoid => ${$snmp_variables}{'PRIVATE_cable_channel_information'} );
+	}
+
+snmp_dispatcher();
+
+foreach my $ip_address ( keys %{$current_ubrs} )
+	{
+	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+	my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+		get_table(
+			-callback       => [ \&validate_one, $data, $ip_address, $snmp_variables ],
+			-baseoid => ${$snmp_variables}{'PRIVATE_cable_channel_parameters'} );
 	}
 snmp_dispatcher();
 
@@ -2251,7 +2266,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 		delete ${$profile_information}{$foo};
 		}
 
-        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+        ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
                 get_table(
                         -baseoid => ${$snmp_variables}{'PRIVATE_cable_channel_parameters'} );
 	while(($foo, $bar) = each(%{$profile_information}))
@@ -2486,7 +2501,6 @@ my ( $foo, $bar );
 # Entry into the function is a point to a hash to store the data
 # the result is a hash with the following
 
-my ($foo, $bar );
 my (%rev_data_pack);
 my (%other_addresses);
 
@@ -3051,7 +3065,9 @@ if ( !$mac_to_change )
 if ( !$profile_change )
 	{ $self->{_GLOBAL}{'STATUS'}="No Profile Specified"; return 0; }
 
-if ( scalar ( split(/\//,$profile_change )) !=2 )
+my (@profile_definition) = split(/\//,$profile_change);
+
+if ( scalar ( @profile_definition ) !=2 )
 	{ $self->{_GLOBAL}{'STATUS'}="Profile Incorrect format ( upstream/downstream )"; return 0; }
 
 my ($lock_profile)=0;
@@ -3372,13 +3388,12 @@ my $data = shift;
 my $ip_address = shift;
 my ( $time_ticks, $resolution ) = unpack ('NN', $raw_input );
 $time_ticks -= 2208988800;
-#$time_ticks = 1198184334;
-#print "Time ticks is '$time_ticks'\n";
 my $gm = localtime($time_ticks);
 my $time = sprintf("%.2d:%.2d",$gm->hour(),$gm->min());
 ${$data}{$ip_address}{'time'}{'hour'}=sprintf("%.2d",$gm->hour());
 ${$data}{$ip_address}{'time'}{'min'}=sprintf("%.2d",$gm->min());
 ${$data}{$ip_address}{'time'}{'epoch'}=$time_ticks;
+${$data}{$ip_address}{'time'}{'full_time'}=$time;
 return 1;
 }
 
@@ -3715,6 +3730,7 @@ instead.
 
 Added support to retrieve the STM information very simple implementation
 to poll the STM mib provided on Cisco equipment.
+Added support to ONLY poll STM information when within all STM windows.
 
 Added Network Link Map Generator
 Added CPE snmp read key cycler ( not finished ).
@@ -3735,6 +3751,10 @@ You can find documentation for this module with the perldoc command.
 
 Cisco I suppose for making their products such a nightmare to manage using
 SNMP.
+
+Joshua Keroes for pointing out some of the make test issues ( thanks!! )
+
+Motorola for some pointers with their CMTS ( still waiting on some info )
 
 =head1 COPYRIGHT & LICENSE
 
