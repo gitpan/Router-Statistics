@@ -30,8 +30,6 @@ $result = $test->UBR_get_stm_Blocking(
 		\%inventory_telnet, 
 		"andyk", "wibble" );
 
-exit(0);
-
 #Now we have both sets of data, lets merge them
 
 foreach my $entry ( keys %inventory )

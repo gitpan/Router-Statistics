@@ -1,4 +1,15 @@
 Revision history for Router-Statistics
+0.99_983 15/01/2008
+	 Removed the POSIX use. No longer required. If you need POSIX include it in
+	 your own script.
+	 Added more debug to STM polling and fixed logic so blocking and non blocking
+	 are the same.
+	 Added another example script to show non blocking use for STM and also
+	 to show how to turn debug on in the module.
+0.99_982 15/01/2008
+	 Removed the 'alive' check after STM polling.
+	 STM polling has other issues so not a 100%, thus deemed unreliable.
+	 Added more debug output for STM polling when DEBUG=>1 enabled in the module
 0.99_981 11/01/2008
 	Fixed up some of the dubious coding that has crept in.
 

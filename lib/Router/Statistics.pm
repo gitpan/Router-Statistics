@@ -9,7 +9,6 @@ use MIME::Base64;
 use IO::Select;
 use IO::Socket;
 use IO::File;
-use POSIX;
 
 =head1 NAME
 
@@ -17,11 +16,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.99_981
+Version 0.99_983
 
 =cut
 
-our $VERSION = '0.99_981';
+our $VERSION = '0.99_983';
 
 =head1 SYNOPSIS
 
@@ -1064,7 +1063,7 @@ my $username = shift;
 my $password = shift;
 my $enable = shift;
 
-my %priv_time;
+my ( %private_data );
 
 my $current_ubrs=$self->Router_Return_All();
 if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
@@ -1079,7 +1078,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
         print "Doing STM MAP for '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 	my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
                 get_table(
-                        -callback       => [ \&validate_rule_base, $data, $ip_address, $snmp_variables ],
+                        -callback       => [ \&validate_rule_base, \%private_data, $ip_address, $snmp_variables ],
                         -baseoid => ${$snmp_variables}{'PRIVATE_stm_rule_base'} );
         }
 snmp_dispatcher();
@@ -1090,48 +1089,59 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 	print "Doing ntp for '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
         my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
                 get_request (
-			-callback       => [ \&validate_callback, $ip_address, $data, $time],
+			-callback       => [ \&validate_callback, $ip_address, \%private_data, $time],
 			-varbindlist => [ ${$time}{'cntpSysClock'} ] );
 	}
 
 snmp_dispatcher();
 foreach my $ip_address ( keys %{$current_ubrs} )
-        { $self->convert_ntp_time_mask(${$data}{$ip_address}{'cntpSysClock'}, $data, $ip_address ); }
+        { $self->convert_ntp_time_mask($private_data{$ip_address}{'cntpSysClock'}, \%private_data, $ip_address ); }
 
 foreach my $ip_address ( keys %{$current_ubrs} )
 	{
-	print "UBR thinks it is Hour is '${$data}{$ip_address}{'time'}{'hour'}' min is '${$data}{$ip_address}{'time'}{'min'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
-	foreach my $stm_rules ( keys %{${$data}{$ip_address}{'stm_rule_set'}} )
+	print "UBR thinks it is Hour is '$private_data{$ip_address}{'time'}{'hour'}' min is '$private_data{$ip_address}{'time'}{'min'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+	foreach my $stm_rules ( keys %{$private_data{$ip_address}{'stm_rule_set'}} )
 		{
-		my $end_hour_time = sprintf("%d",( ${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'} +
-					(${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleDuration'}/60)));
-		if ( ${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}>${$data}{$ip_address}{'time'}{'hour'} )
+		my $end_hour_time = sprintf("%d",( $private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'} +
+					($private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleDuration'}/60)));
+		if ( $private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}>$private_data{$ip_address}{'time'}{'hour'} )
 			{
-			${$data}{$ip_address}{'stm_rule_not_allowed'}++;
+			$private_data{$ip_address}{'stm_rule_not_allowed'}++;
 			print "We are removing '$stm_rules' not started\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+			next;
 			}
 
-                if ( ${$data}{$ip_address}{'time'}{'hour'}>=${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}
+                if ( $private_data{$ip_address}{'time'}{'hour'}>=$private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}
                         &&
-                        ${$data}{$ip_address}{'time'}{'hour'}<$end_hour_time
-                        &&
-                        ( ${$data}{$ip_address}{'time'}{'hour'}<=($end_hour_time-1) && ${$data}{$ip_address}{'time'}{'min'}<45 )
+			($private_data{$ip_address}{'time'}{'hour'}<$end_hour_time && $private_data{$ip_address}{'time'}{'min'}<45 )
                         )
 			{
+			print "We are allowing '$stm_rules' end point success\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 			}
 			else
 			{
-			${$data}{$ip_address}{'stm_rule_not_allowed'}++;
-			print "We are removing '$stm_rules' end point failure\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+			$private_data{$ip_address}{'stm_rule_not_allowed'}++;
+                        print "We are removing '$stm_rules' end point failure\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+			print "Time hour is '$private_data{$ip_address}{'time'}{'hour'}' start time is '$private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+			print "Time hour is '$private_data{$ip_address}{'time'}{'hour'}' end hour is '$end_hour_time'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+			print "Time Min  is '$private_data{$ip_address}{'time'}{'min'}' \n" if $self->{_GLOBAL}{'DEBUG'}==1;
 			}		
 		}
 	}
 
 foreach my $ip_address ( keys %{$current_ubrs} )
+	{
+	print "IP address is as follows.\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+	print "Profiles allowed is '".scalar(keys %{$private_data{$ip_address}{'stm_rule_set'}} )."'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+	print "Profiles banned is '".$private_data{$ip_address}{'stm_rule_not_allowed'}."'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+	}
+
+foreach my $ip_address ( keys %{$current_ubrs} )
         {
 	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-	if ( ${$data}{$ip_address}{'stm_rule_not_allowed'}!=scalar( keys %{${$data}{$ip_address}{'stm_rule_set'}} ) )
+	if ( $private_data{$ip_address}{'stm_rule_not_allowed'}!=scalar( keys %{$private_data{$ip_address}{'stm_rule_set'}} ) )
 		{
+		print "We match profiles so can snmp poll for STM '$ip_address'.\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 		my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 			get_table(
 				-callback=> [ \&validate_two_plain, $data, $ip_address, $snmp_variables ],
@@ -1139,9 +1149,68 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 		}
 	}
 snmp_dispatcher();
+
 foreach my $ip_address ( keys %{$current_ubrs} )
 	{
-	if ( ${$data}{$ip_address}{'stm_rule_not_allowed'}!=scalar( keys %{${$data}{$ip_address}{'stm_rule_set'}} ) )
+	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+	if ( $private_data{$ip_address}{'stm_rule_not_allowed'}!=scalar( keys %{$private_data{$ip_address}{'stm_rule_set'}} ) )
+		{
+		print "We match profiles so can telnet poll for STM '$ip_address'.\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+                if ( $username && $password )
+                        {
+                        my $router_name = ${$router_info}{$ip_address}{'hostName'};
+                        if ( $router_name )
+                                {
+                                my $safe_router_name=$router_name;
+                                my $router_t = new Net::Telnet (Timeout => 20,
+                                        Telnetmode => 0,
+                                        Prompt => "/^Username :|Password :|$safe_router_name/" );
+                                my $error_change = $router_t->errmode("return");
+                                my $login_router = $router_t->open( $ip_address );
+                                if ( $login_router )
+                                        {
+                                        $router_t->login($username,$password);
+                                        if ( $enable )
+                                                {
+                                                my $line = $router_t->print("enable");
+                                                $router_t->waitfor("/Password/");
+                                                $line = $router_t->print( $enable );
+                                                $router_t->waitfor("/$safe_router_name/");
+                                                }
+                                        my $stm_command = decode_base64(${$telnet_commands}{'stm_command'});
+                                        my $line = $router_t->print( decode_base64(${$telnet_commands}{'termline'}) ) ;
+                                        $router_t->waitfor("/$router_name\#/");
+                                        my @lines = $router_t->cmd(String => $stm_command ,Prompt  => "/$safe_router_name\#/");
+                                        $router_t->close();
+                                        # we need to make sure we handle the multiple domains within the output
+                                        # as Telnet commands are notorious for providing correct but repeating idents
+                                        # these need to be mapped into a unique handler. Lets face it though, using
+                                        # telnet is just a really bad idea.
+                                        $a=0;
+                                        foreach $line ( @lines )
+                                                {
+                                                next if $line=~/^$safe_router_name/;
+                                                next unless $line=~/^[0-9]/;
+                                                next unless length($line)>10;
+                                                chop($line);
+                                                my @fields = (split(/\W*\s+\W*/,$line));
+                                                my $instance_telnet = "$a".$fields[0];
+                                                ${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateMacAddr'}=$fields[1];
+                                                ${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateRuleName'}=$fields[2];
+                                                ${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolateLastDetectTime'}="$fields[4] $fields[5]";
+                                                ${$telnet_data}{$ip_address}{$instance_telnet}{'ccqmEnfRuleViolatePenaltyExpTime'}="$fields[6] $fields[7]";
+                                                $a++;
+                                                }
+                                        }
+                                }
+                        }
+		}
+	}
+
+
+foreach my $ip_address ( keys %{$current_ubrs} )
+	{
+	if ( $private_data{$ip_address}{'stm_rule_not_allowed'}!=scalar( keys %{$private_data{$ip_address}{'stm_rule_set'}} ) )
 		{
 		foreach my $instance ( keys %{${$data}{$ip_address}} )
 			{
@@ -1173,6 +1242,8 @@ if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
 
 my ( $foo, $bar );
 
+my ( %private_data );
+
 my $snmp_variables = Router::Statistics::OID->STM_populate_oid();
 my $telnet_commands = Router::Statistics::OID->telnet_commands();
 my $time = Router::Statistics::OID->ntp_populate_oid();
@@ -1198,7 +1269,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
         	                	foreach my $character ( split(/\./,$new_oid) )
         	                	        { next if $character<15; $name.=chr($character); }
         	                	$name=~s/^\s*//; $name=~ s/\s*$//;
-                        		${$data}{$ip_address}{'stm_rule_set'}{$name}{$attribute}=$bar;
+                        		$private_data{$ip_address}{'stm_rule_set'}{$name}{$attribute}=$bar;
 					}
 				}
                         }
@@ -1214,47 +1285,53 @@ foreach my $ip_address ( keys %{$current_ubrs} )
                                 ${$time}{'cntpSysClock'} 
 				] );
 
-	$self->convert_ntp_time_mask( $time_request->{ ${$time}{'cntpSysClock'} }, $data, $ip_address );
+	$self->convert_ntp_time_mask( $time_request->{ ${$time}{'cntpSysClock'} }, \%private_data, $ip_address );
+	print "UBR thinks its Hour is '$private_data{$ip_address}{'time'}{'hour'}' min is '$private_data{$ip_address}{'time'}{'min'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 
-	print "UBR thinks its Hour is '${$data}{$ip_address}{'time'}{'hour'}' min is '${$data}{$ip_address}{'time'}{'min'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
-
-	foreach my $stm_rules ( keys %{${$data}{$ip_address}{'stm_rule_set'}} )
+	foreach my $stm_rules ( keys %{$private_data{$ip_address}{'stm_rule_set'}} )
 		{
-		print "Rule name2 is '$stm_rules'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
-		print "Start time2 is '${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+
+		print "Rule name is '$stm_rules'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+		print "Start time is '$private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 		
-                my $end_hour_time = sprintf("%d",( ${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'} +
-                                        (${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleDuration'}/60)));
+                my $end_hour_time = sprintf("%d",( $private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'} +
+                                        ($private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleDuration'}/60)));
 
-		print "End time2 is '$end_hour_time'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+		#print "End time is '$end_hour_time'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 
-                if ( ${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}>${$data}{$ip_address}{'time'}{'hour'} )
+                if ( $private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}>$private_data{$ip_address}{'time'}{'hour'} )
                         {
-                        ${$data}{$ip_address}{'stm_rule_not_allowed'}++;
+                        $private_data{$ip_address}{'stm_rule_not_allowed'}++;
                         print "We are removing '$stm_rules' not started\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+			next;
                         }
 
-		print "hour is '${$data}{$ip_address}{'time'}{'hour'}' start is '${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
-		print "end is '".($end_hour_time-1)."' min is '${$data}{$ip_address}{'time'}{'min'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
-
-                if ( ${$data}{$ip_address}{'time'}{'hour'}>=${$data}{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}
+                if ( $private_data{$ip_address}{'time'}{'hour'}>=$private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}
 			&& 
-                        ${$data}{$ip_address}{'time'}{'hour'}<$end_hour_time 
-			&&
-                        ( ${$data}{$ip_address}{'time'}{'hour'}<=($end_hour_time-1) && ${$data}{$ip_address}{'time'}{'min'}<45 )
+			($private_data{$ip_address}{'time'}{'hour'}<$end_hour_time && $private_data{$ip_address}{'time'}{'min'}<45 )
 			)
                         {
+			print "We are allowing '$stm_rules' end point success2\n" if $self->{_GLOBAL}{'DEBUG'}==1;
                         }
                         else
                         {
-                        ${$data}{$ip_address}{'stm_rule_not_allowed'}++;
+                        $private_data{$ip_address}{'stm_rule_not_allowed'}++;
                         print "We are removing '$stm_rules' end point failure2\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+			print "Time hour is '$private_data{$ip_address}{'time'}{'hour'}' start time is '$private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+			print "Time hour is '$private_data{$ip_address}{'time'}{'hour'}' end hour is '$end_hour_time'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+			print "Time Min  is '$private_data{$ip_address}{'time'}{'min'}' \n" if $self->{_GLOBAL}{'DEBUG'}==1;
+
+
                         }
+		print "Now count is '".$private_data{$ip_address}{'stm_rule_not_allowed'}."' for '$stm_rules'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
                 }
 
-	if ( ${$data}{$ip_address}{'stm_rule_not_allowed'}!=scalar( keys %{${$data}{$ip_address}{'stm_rule_set'}} ) )
+	print "Profiles allowed is '".scalar(keys %{$private_data{$ip_address}{'stm_rule_set'}} )."'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+	print "Profiles banned is '".$private_data{$ip_address}{'stm_rule_not_allowed'}."'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+
+	if ( $private_data{$ip_address}{'stm_rule_not_allowed'}!=scalar( keys %{$private_data{$ip_address}{'stm_rule_set'}} ) )
 		{
-		print "We match profiles so can poll for STM2.\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+		print "We match profiles so can snmp and telnet poll for STM2 '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
         	my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
         	        get_table( -baseoid => ${$snmp_variables}{'PRIVATE_stm_base'} );
 
@@ -1333,15 +1410,21 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 		# recheck router is still up, after a poll ?
 		# we can not do this in non blocking mode, alas.
 		#
-		my ($time_request)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
-			get_request ( -varbindlist => [ ${$time}{'cntpSysClock'} ] );
-		if (  $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->error )
-			{
-			# We failed to get ntp time from the router we just polled.
-			# we stop all polling and return out.
-			print "Router failed to return after STM poll we are exiting.\n" if $self->{_GLOBAL}{'DEBUG'}==1;
-			return 1;
-			}
+		# Currently this section removed as it is not uptime we need to check all the time.
+		# The bug with STM is that if you poll outside the window, it can crash the router/line
+		# cards ( possibly one then the other )
+		# This check as been taken out to allow checks to be done by a wrapper of some 
+		# description call this code.
+		#
+		#my ($time_request)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+		#	get_request ( -varbindlist => [ ${$time}{'cntpSysClock'} ] );
+		#if (  $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->error )
+		#	{
+		#	# We failed to get ntp time from the router we just polled.
+		#	# we stop all polling and return out.
+		#	print "Router failed to return after STM poll we are exiting.\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+		#	return 1;
+		#	}
 		}
 	}
 		
@@ -3392,6 +3475,7 @@ my $gm = localtime($time_ticks);
 my $time = sprintf("%.2d:%.2d",$gm->hour(),$gm->min());
 ${$data}{$ip_address}{'time'}{'hour'}=sprintf("%.2d",$gm->hour());
 ${$data}{$ip_address}{'time'}{'min'}=sprintf("%.2d",$gm->min());
+
 ${$data}{$ip_address}{'time'}{'epoch'}=$time_ticks;
 ${$data}{$ip_address}{'time'}{'full_time'}=$time;
 return 1;
