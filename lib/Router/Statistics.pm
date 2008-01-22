@@ -16,11 +16,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.99_983
+Version 0.99_985
 
 =cut
 
-our $VERSION = '0.99_983';
+our $VERSION = '0.99_985';
 
 =head1 SYNOPSIS
 
@@ -89,8 +89,23 @@ have real access to Cisco equipment so this code can not be confirmed 100% again
 I would also like to expand the library to cover other actions , rather than just DOCSIS functions, which
 is the primary action focus at the moment.
 
-=head1 FUNCTIONS
+The module current has two(2) global variables that can be set when creating the object the first DEBUG
+turns on all the debug output, the second, STM_Safety_Limit,  allows you to change the STM safety margin 
+by subtracting the number (minutes) specified from the end time. This is also settable in the STM functions
+but only if you are also using an enable password.
 
+An example of how to use them is
+
+    $statistics = new Router::Statistics(
+                              [
+                              DEBUG => 1,
+                              STM_Safety_Limit => 10
+                              ]
+                              );
+
+This would turn on debug and set the safety marging to 10 minutes. The default safety marging is 15 minutes.
+
+=head1 FUNCTIONS
 
 =item C<< Router_Add >>
 
@@ -188,11 +203,18 @@ No detail given.
 
 =item C<< Router_get_interfaces >>
 
-This function returns the following for each interface found on the router
+This function returns the following for each interface found on the router in 32bit mode.
 
     ifDescr ifType ifMtu ifSpeed ifPhysAddress ifAdminStatus ifOperStatus ifLastChange
     ifInOctets ifInUcastPkts ifInNUcastPkts ifInDiscards ifInErrors ifInUnknownProtos
     ifOutOctets ifOutUcastPkts ifOutNUcastPkts ifOutDiscards ifOutErrors ifAlias
+
+you can specify 64Bit when calling this function and it will then get and return
+
+    ifName ifInMulticastPkts ifInBroadcastPkts ifOutMulticastPkts ifOutBroadcastPkts
+    ifHCInOctets ifHCInUcastPkts ifHCInMulticastPkts ifHCInBroadcastPkts ifHCOutOctets
+    ifHCOutUcastPkts ifHCOutMulticastPkts ifHCOutBroadcastPkts ifLinkUpDownTrapEnable
+    ifHighSpeed ifPromiscuousMode ifConnectorPresent ifAlias ifCounterDiscontinuityTime
 
 The data is returned in a structured hash as follows
 
@@ -204,7 +226,9 @@ The data is returned in a structured hash as follows
 Example of Use
 
     my %interface_information;
-    my $test = $test->Router_get_interfaces( \%interface_information );
+    my $test = $test->Router_get_interfaces( \%interface_information, "32Bit" );
+
+You can omit 32Bit as it is 32Bit by default, but is shown for clarity here.
 
 =item C<< Router_get_interfaces_Blocking >>
 
@@ -217,6 +241,13 @@ This function returns the following for each interface found on the router
     ifInOctets ifInUcastPkts ifInNUcastPkts ifInDiscards ifInErrors ifInUnknownProtos
     ifOutOctets ifOutUcastPkts ifOutNUcastPkts ifOutDiscards ifOutErrors ifAlias
 
+you can specify 64Bit when calling this function and it will then get and return
+
+    ifName ifInMulticastPkts ifInBroadcastPkts ifOutMulticastPkts ifOutBroadcastPkts
+    ifHCInOctets ifHCInUcastPkts ifHCInMulticastPkts ifHCInBroadcastPkts ifHCOutOctets
+    ifHCOutUcastPkts ifHCOutMulticastPkts ifHCOutBroadcastPkts ifLinkUpDownTrapEnable
+    ifHighSpeed ifPromiscuousMode ifConnectorPresent ifAlias ifCounterDiscontinuityTime
+
 The data is returned in a structured hash as follows
 
     Router IP Address
@@ -227,7 +258,9 @@ The data is returned in a structured hash as follows
 Example of Use
 
     my %interface_information;
-    my $test = $test->Router_get_interfaces_Blocking( \%interface_information );
+    my $test = $test->Router_get_interfaces_Blocking( \%interface_information, "32Bit" );
+
+You can omit 32Bit as it is 32Bit by default, but is shown for clarity here.
 
 =item C<< CPE_Add >>
 
@@ -393,10 +426,23 @@ Example of Use
     use strict;
 
     my $test= new Router::Statistics;
-    my %stm_information;
+    my (%stm_inventory, %stm_telnet_inventory , %router);
     my $result = $test->Router_Add( "10.1.1.1" , "public" );
     $result = $test->Router_Ready ( "10.1.1.1" );
-    $result = $test->UBR_get_stm( \%stm_information );
+    $result = $test->UBR_get_stm( 
+        \%router,
+        \%stm_information,
+        \%stm_telnet_inventory,
+        "telnetlogin",
+        "telnetpassword",
+        "enablepassword",
+        "15" );
+
+The enable password is only required if your login does not put you into the correct
+privs account when logged in initially.
+
+The 15 is the amount of minutes to subtract from the end of the STM period as a safety
+margin for polling.
 
 The %stm_information hash contains a tree rooted by the IP address of the routers Added
 initially and the STM information as follows
@@ -428,7 +474,7 @@ Example of Use
     use strict;
 
     my $test= new Router::Statistics;
-    my (%stm_inventory, %stm_telnet_inventory , %routers);
+    my (%stm_inventory, %stm_telnet_inventory , %router);
     my $result = $test->Router_Add( "10.1.1.1" , "public" );
     $result = $test->Router_Ready_Blocking ( "10.1.1.1" );
     $result = $test->Router_Test_Connection_Blocking(\%routers);
@@ -438,10 +484,14 @@ Example of Use
         \%stm_telnet_inventory,
         "telnetlogin",
         "telnetpassword",
-        "enablepassword"* );
+        "enablepassword",
+	"15" );
 
-*The enable password is only required if your login does not put you into the correct
+The enable password is only required if your login does not put you into the correct
 privs account when logged in initially.
+
+The 15 is the amount of minutes to subtract from the end of the STM period as a safety
+margin for polling.
 
 The %stm_information and %stm_telnet_inventory hashes contains a tree rooted by the IP address 
 of the routers Added initially and the STM information as follows
@@ -519,6 +569,13 @@ sub new {
 		{ $self->{_GLOBAL}{$field}=$val; }
 
 	$self->{_GLOBAL}{'STATUS'}="OK";
+	
+	if ( !$self->{_GLOBAL}{'64Bit'} )
+		{ $self->{_GLOBAL}{'64Bit'}=0; }
+		else
+		{ $self->{_GLOBAL}{'32Bit'}=1; }
+
+	$self->{_GLOBAL}{'STM_Safety_Limit'}=0;
 
 	$self->set_format();
 
@@ -1062,6 +1119,13 @@ my $telnet_data = shift;
 my $username = shift;
 my $password = shift;
 my $enable = shift;
+my $safety_offset = shift;
+
+if ( $self->{_GLOBAL}{'STM_Safety_Limit'} && !$safety_offset ) 
+	{ $safety_offset=$self->{_GLOBAL}{'STM_Safety_Limit'}; }
+
+if ( !$safety_offset )
+	{ $safety_offset=15; }
 
 my ( %private_data );
 
@@ -1102,18 +1166,25 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 	print "UBR thinks it is Hour is '$private_data{$ip_address}{'time'}{'hour'}' min is '$private_data{$ip_address}{'time'}{'min'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 	foreach my $stm_rules ( keys %{$private_data{$ip_address}{'stm_rule_set'}} )
 		{
+		my $high_start_time = ($private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}*60);
+
+		my $high_end_time = ($private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}*60)+
+					$private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleDuration'};
+		$high_end_time=$high_end_time-$safety_offset;
+		
 		my $end_hour_time = sprintf("%d",( $private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'} +
 					($private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleDuration'}/60)));
-		if ( $private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}>$private_data{$ip_address}{'time'}{'hour'} )
+
+		if ( $high_start_time>$private_data{$ip_address}{'time'}{'total_minutes'} )
 			{
 			$private_data{$ip_address}{'stm_rule_not_allowed'}++;
 			print "We are removing '$stm_rules' not started\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 			next;
 			}
 
-                if ( $private_data{$ip_address}{'time'}{'hour'}>=$private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}
+                if ( ($private_data{$ip_address}{'time'}{'total_minutes'}>=$high_start_time) 
                         &&
-			($private_data{$ip_address}{'time'}{'hour'}<$end_hour_time && $private_data{$ip_address}{'time'}{'min'}<45 )
+			($private_data{$ip_address}{'time'}{'total_minutes'}<$high_end_time ) 
                         )
 			{
 			print "We are allowing '$stm_rules' end point success\n" if $self->{_GLOBAL}{'DEBUG'}==1;
@@ -1236,6 +1307,13 @@ my $telnet_data = shift;
 my $username = shift;
 my $password = shift;
 my $enable = shift;
+my $safety_offset = shift;
+
+if ( $self->{_GLOBAL}{'STM_Safety_Limit'} && !$safety_offset )
+        { $safety_offset=$self->{_GLOBAL}{'STM_Safety_Limit'}; }
+
+if ( !$safety_offset )
+        { $safety_offset=15; }
 
 my $current_ubrs=$self->Router_Return_All();
 if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
@@ -1297,19 +1375,26 @@ foreach my $ip_address ( keys %{$current_ubrs} )
                 my $end_hour_time = sprintf("%d",( $private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'} +
                                         ($private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleDuration'}/60)));
 
+                my $high_start_time = ($private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}*60);
+
+                my $high_end_time = ($private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}*60)+
+                                        $private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleDuration'};
+                $high_end_time=$high_end_time-$safety_offset;
+
+
 		#print "End time is '$end_hour_time'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 
-                if ( $private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}>$private_data{$ip_address}{'time'}{'hour'} )
+                if ( $high_start_time>$private_data{$ip_address}{'time'}{'total_minutes'} )
                         {
                         $private_data{$ip_address}{'stm_rule_not_allowed'}++;
                         print "We are removing '$stm_rules' not started\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 			next;
                         }
 
-                if ( $private_data{$ip_address}{'time'}{'hour'}>=$private_data{$ip_address}{'stm_rule_set'}{$stm_rules}{'ccqmCmtsEnfRuleStartTime'}
-			&& 
-			($private_data{$ip_address}{'time'}{'hour'}<$end_hour_time && $private_data{$ip_address}{'time'}{'min'}<45 )
-			)
+                if ( ($private_data{$ip_address}{'time'}{'total_minutes'}>=$high_start_time)
+                        &&
+                        ($private_data{$ip_address}{'time'}{'total_minutes'}<$high_end_time )
+                        )
                         {
 			print "We are allowing '$stm_rules' end point success2\n" if $self->{_GLOBAL}{'DEBUG'}==1;
                         }
@@ -1437,11 +1522,21 @@ sub Router_get_interfaces
 {
 my $self = shift;
 my $data = shift;
+my $type = shift;
 
 my $current_ubrs=$self->Router_Return_All();
 if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
 
-my $snmp_variables = Router::Statistics::OID->Router_interface_oid();
+my $snmp_variables;
+
+if ( $self->{_GLOBAL}{'32Bit'}==1 ||
+	$type=~/^32Bit$/i )
+	{ $snmp_variables=Router::Statistics::OID->Router_interface_oid(); }
+
+if ( $self->{_GLOBAL}{'64Bit'}==1 ||
+	$type=~/^64Bit$/i )
+	{ $snmp_variables=Router::Statistics::OID->Router_interface_oid_hc(); }
+
 foreach my $ip_address ( keys %{$current_ubrs} )
         {
 	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
@@ -1482,11 +1577,21 @@ sub Router_get_interfaces_Blocking
 {
 my $self = shift;
 my $data = shift;
+my $type = shift;
 
 my $current_ubrs=$self->Router_Return_All();
 if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
 
-my $snmp_variables = Router::Statistics::OID->Router_interface_oid();
+my $snmp_variables;
+
+if ( $self->{_GLOBAL}{'32Bit'}==1 ||
+        $type=~/^32Bit$/i )
+        { $snmp_variables=Router::Statistics::OID->Router_interface_oid(); }
+
+if ( $self->{_GLOBAL}{'64Bit'}==1 ||
+        $type=~/^64Bit$/i )
+        { $snmp_variables=Router::Statistics::OID->Router_interface_oid_hc(); }
+
 foreach my $ip_address ( keys %{$current_ubrs} )
         {
 	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
@@ -1535,6 +1640,45 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 			{ ${$data}{$ip_address}{$1}{'ifOutDiscards'}=$bar; }
 		if ( $foo=~/^${$snmp_variables}{'ifOutErrors'}.(\d+)/ )
 			{ ${$data}{$ip_address}{$1}{'ifOutErrors'}=$bar; }
+
+		if ( $foo=~/^${$snmp_variables}{'ifName'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifName'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifInMulticastPkts'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifInMulticastPkts'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifInBroadcastPkts'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifInBroadcastPkts'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifOutMulticastPkts'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifOutMulticastPkts'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifOutBroadcastPkts'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifOutBroadcastPkts'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifHCInOctets'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifHCInOctets'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifHCInUcastPkts'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifHCInUcastPkts'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifHCInMulticastPkts'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifHCInMulticastPkts'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifHCInBroadcastPkts'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifHCInBroadcastPkts'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifHCOutOctets'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifHCOutOctets'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifHCOutUcastPkts'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifHCOutUcastPkts'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifHCOutMulticastPkts'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifHCOutMulticastPkts'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifHCOutBroadcastPkts'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifHCOutBroadcastPkts'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifLinkUpDownTrapEnable'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifLinkUpDownTrapEnable'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifHighSpeed'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifHighSpeed'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifPromiscuousMode'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifPromiscuousMode'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifConnectorPresent'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifConnectorPresent'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifAlias'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifAlias'}=$bar; }
+		if ( $foo=~/^${$snmp_variables}{'ifCounterDiscontinuityTime'}.(\d+)/ )
+			{ ${$data}{$ip_address}{$1}{'ifCounterDiscontinuityTime'}=$bar; }
 		delete ${$profile_information}{$foo};
 		}
 
@@ -3475,7 +3619,7 @@ my $gm = localtime($time_ticks);
 my $time = sprintf("%.2d:%.2d",$gm->hour(),$gm->min());
 ${$data}{$ip_address}{'time'}{'hour'}=sprintf("%.2d",$gm->hour());
 ${$data}{$ip_address}{'time'}{'min'}=sprintf("%.2d",$gm->min());
-
+${$data}{$ip_address}{'time'}{'total_minutes'}=(${$data}{$ip_address}{'time'}{'hour'}*60)+${$data}{$ip_address}{'time'}{'min'};
 ${$data}{$ip_address}{'time'}{'epoch'}=$time_ticks;
 ${$data}{$ip_address}{'time'}{'full_time'}=$time;
 return 1;

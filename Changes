@@ -1,4 +1,12 @@
 Revision history for Router-Statistics
+0.99_985 22/01/2008
+	 Added global STM_Safety_Limit for setting safety margin for end of STM periods
+0.99_984 20/01/2008
+	 Added HC counters into the  Router_get_interfaces functions
+	 Router_get_interfaces_Blocking
+	 Router_get_interfaces
+	 (see man page for more details)
+	 Fixed STM timer so it can now do times regardless of being an hour boundary
 0.99_983 15/01/2008
 	 Removed the POSIX use. No longer required. If you need POSIX include it in
 	 your own script.
