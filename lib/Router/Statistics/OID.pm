@@ -56,7 +56,9 @@ sub telnet_commands
 my %telnet_command_set =
 		(
 		'termline'			=>	'dGVybSBsZW4gMA==',
-		'stm_command'			=>	'c2ggY2FibGUgc3Vic2NyaWJlci11c2FnZSB8IGluY2x1ZGUgQWN0'
+		'stm_command'			=>	'c2ggY2FibGUgc3Vic2NyaWJlci11c2FnZSB8IGluY2x1ZGUgQWN0',
+		'page_off'			=>	'cGFnZSBvZmY=',
+		'show_running_config'		=>	'c2hvdyBydW5uaW5nLWNvbmZpZw=='
 		);
 return \%telnet_command_set;
 }
@@ -144,7 +146,7 @@ sub Router_interface_oid_hc
 {
 my %snmp_usable_oid =
 		(
-		'PRIVATE_hc_interface_base'	=> '1.3.6.1.2.1.31.1.1.1',
+		'PRIVATE_interface_base'	=> '1.3.6.1.2.1.31.1.1.1',
 		'ifName'			=> '1.3.6.1.2.1.31.1.1.1.1',
 		'ifInMulticastPkts'		=> '1.3.6.1.2.1.31.1.1.1.2',
 		'ifInBroadcastPkts'		=> '1.3.6.1.2.1.31.1.1.1.3',
@@ -204,6 +206,7 @@ my %snmp_usable_oid =
 	(
 		'sysDescr'			=>      '1.3.6.1.2.1.1.1.0',
         	'sysUpTime'			=>      '1.3.6.1.2.1.1.3.0',
+		'sysName'			=>	'1.3.6.1.2.1.1.5.0',
         	'hostName'			=>      '1.3.6.1.4.1.9.2.1.3.0',
         	'whyReload'			=>      '1.3.6.1.4.1.9.2.1.2.0',
         	'entPhysicalDescr.1'		=>      '1.3.6.1.2.1.47.1.1.1.1.2.1',

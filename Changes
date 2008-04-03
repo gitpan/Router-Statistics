@@ -1,4 +1,17 @@
 Revision history for Router-Statistics
+0.99_988 04/04/2008
+	Added Telnet off by default for STM information
+		Requested as part of a clean for keeping convention, but allowing
+		it to be turned on off, without changing parts of the code when 
+		being called.
+0.99_987 29/01/2008
+	 Added CMTS_Motorola_get_config 
+	$result = $test->CMTS_Motorola_get_config(
+                \%routers,
+                \%configuration,
+                "username",
+                "password", "enable" );
+0.99_986 Fixed HC counters properly, silly typo in the naming convention
 0.99_985 22/01/2008
 	 Added global STM_Safety_Limit for setting safety margin for end of STM periods
 0.99_984 20/01/2008

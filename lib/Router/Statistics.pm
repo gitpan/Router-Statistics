@@ -16,11 +16,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.99_985
+Version 0.99_988
 
 =cut
 
-our $VERSION = '0.99_985';
+our $VERSION = '0.99_988';
 
 =head1 SYNOPSIS
 
@@ -575,7 +575,8 @@ sub new {
 		else
 		{ $self->{_GLOBAL}{'32Bit'}=1; }
 
-	$self->{_GLOBAL}{'STM_Safety_Limit'}=0;
+	$self->{_GLOBAL}{'STM_Safety_Limit'}=15;
+	$self->{_GLOBAL}{'Telnet'}=0;
 
 	$self->set_format();
 
@@ -1107,6 +1108,82 @@ foreach my $router ( keys %{$data} )
 return $output;
 }
 
+sub CMTS_Motorola_get_config
+{
+# This function is not going to have the extra STM information added
+# as it should not really be run anyway and it would only be a repition
+# of code.
+my $self = shift;
+my $router_info = shift;
+my $config_data = shift;
+my $username = shift;
+my $password = shift;
+my $enable = shift;
+
+my ( %private_data );
+
+my $current_ubrs=$self->Router_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 ) 
+	{ 
+	print "Configuration no routers found.\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+	return 0; }
+
+my $snmp_variables = Router::Statistics::OID->STM_populate_oid();
+my $telnet_commands = Router::Statistics::OID->telnet_commands();
+
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+	print "CMTS Configuration Collection for '$ip_address'.\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+	if ( $password )
+		{
+		my $router_name;
+		$router_name = ${$router_info}{$ip_address}{'hostName'};
+		print "CMTS Hostname is '$router_name'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+		if ( $router_name )
+			{
+			my $router_t = new Net::Telnet (Timeout => 20,
+			Telnetmode => 0,
+			Cmd_remove_mode => 1,
+			Prompt => "/^Username:|Password:|$router_name/" );
+			my $error_change = $router_t->errmode("return");
+			my $login_router = $router_t->open( $ip_address );
+			my $line;
+			if ( $login_router )
+				{
+				if ( $username )
+					{
+					print "We have a username.\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+					print "Username is '$username' password is '$password'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+					$router_t->waitfor("/Username:/");
+					$line = $router_t->print( $username );
+#					$router_t->login($username,$password);
+					}
+				$router_t->waitfor("/Password:/");
+				$line = $router_t->print( $password );
+				if ( $enable )
+					{
+					print "We have enable\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+					$line = $router_t->print("enable");
+					$router_t->waitfor("/Password|$router_name\#/");
+					$line = $router_t->print( $enable );
+					}
+				$router_t->waitfor("/$router_name/");
+				my $config_command = decode_base64(${$telnet_commands}{'show_running_config'});
+				$line = $router_t->print( decode_base64(${$telnet_commands}{'page_off'}) ) ;
+				$router_t->waitfor("/$router_name\#/");
+				my @lines = $router_t->cmd(String => $config_command ,Prompt  => "/$router_name\#/");
+				$lines[0]="";
+				foreach my $line ( @lines ) 
+					{ $line=~s/^\s*//; $line=~ s/\s*$//; $line.="\n"; 
+					${$config_data}{$ip_address}{'config'}.=$line; }
+				$router_t->close();
+				}
+			}
+		}
+	}
+return 1;
+}
+
 sub UBR_get_stm
 {
 # This function is not going to have the extra STM information added
@@ -1221,6 +1298,9 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 	}
 snmp_dispatcher();
 
+if ( $self->{_GLOBAL}{'Telnet'}==1 )
+	{
+
 foreach my $ip_address ( keys %{$current_ubrs} )
 	{
 	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
@@ -1276,6 +1356,8 @@ foreach my $ip_address ( keys %{$current_ubrs} )
                                 }
                         }
 		}
+	}
+
 	}
 
 
@@ -1443,6 +1525,10 @@ foreach my $ip_address ( keys %{$current_ubrs} )
  	               delete ${$profile_information}{$foo};
  	               }
 
+		if ( $self->{_GLOBAL}{'Telnet'}==1 )
+			{
+
+
 		if ( $username && $password )
 			{
 
@@ -1491,6 +1577,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 						}
 					}
 				}
+			}
 			}
 		# recheck router is still up, after a poll ?
 		# we can not do this in non blocking mode, alas.
@@ -1643,12 +1730,16 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 
 		if ( $foo=~/^${$snmp_variables}{'ifName'}.(\d+)/ )
 			{ ${$data}{$ip_address}{$1}{'ifName'}=$bar; }
+
 		if ( $foo=~/^${$snmp_variables}{'ifInMulticastPkts'}.(\d+)/ )
 			{ ${$data}{$ip_address}{$1}{'ifInMulticastPkts'}=$bar; }
+
 		if ( $foo=~/^${$snmp_variables}{'ifInBroadcastPkts'}.(\d+)/ )
 			{ ${$data}{$ip_address}{$1}{'ifInBroadcastPkts'}=$bar; }
+
 		if ( $foo=~/^${$snmp_variables}{'ifOutMulticastPkts'}.(\d+)/ )
 			{ ${$data}{$ip_address}{$1}{'ifOutMulticastPkts'}=$bar; }
+
 		if ( $foo=~/^${$snmp_variables}{'ifOutBroadcastPkts'}.(\d+)/ )
 			{ ${$data}{$ip_address}{$1}{'ifOutBroadcastPkts'}=$bar; }
 		if ( $foo=~/^${$snmp_variables}{'ifHCInOctets'}.(\d+)/ )
@@ -1685,6 +1776,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
         ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
                 get_table(
                 -baseoid => ${$snmp_variables}{'ifAlias'} );
+
         while(($foo, $bar) = each(%{$profile_information}))
                 {
 		if ( $foo=~/^${$snmp_variables}{'ifAlias'}.(\d+)/ )
@@ -3475,6 +3567,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 		get_request( 
 			-callback 	=> [ \&validate_callback, $ip_address, $data, $snmp_variables ],
 			-varbindlist => [ 
+				${$snmp_variables}{'sysName'},
 				${$snmp_variables}{'sysUpTime'},
 				${$snmp_variables}{'hostName'},
 				${$snmp_variables}{'sysDescr'} ]);
@@ -3487,6 +3580,10 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 		{ 
 		$self->Router_Remove($ip_address); 
 		} 
+	if ( !${$data}{$ip_address}{'hostName'} || ${$data}{$ip_address}{'hostName'}=~/^noSuchObject/i )
+		{ 
+		${$data}{$ip_address}{'hostName'}=${$data}{$ip_address}{'sysName'};
+		}
 	}
 
 return 1;
@@ -3508,15 +3605,19 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 	$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 		get_request( 
 			-varbindlist => [ 
+				${$snmp_variables}{'sysName'},
 				${$snmp_variables}{'sysUpTime'},
 				${$snmp_variables}{'hostName'},
 				${$snmp_variables}{'sysDescr'} ]);
 
 	if ( $result->{${$snmp_variables}{'sysUpTime'}} )
 		{
+		${$data}{$ip_address}{'sysName'}=$result->{${$snmp_variables}{'sysName'}};
 		${$data}{$ip_address}{'sysUpTime'}=$result->{${$snmp_variables}{'sysUpTime'}};
 		${$data}{$ip_address}{'hostName'}=$result->{${$snmp_variables}{'hostName'}};
 		${$data}{$ip_address}{'sysDescr'}=$result->{${$snmp_variables}{'sysDescr'}};
+		if ( !${$data}{$ip_address}{'hostName'} || ${$data}{$ip_address}{'hostName'}=~/^noSuchObject/i )
+			{ ${$data}{$ip_address}{'hostName'}=${$data}{$ip_address}{'sysName'}; }
 		}
 		else
 		{
@@ -3981,6 +4082,7 @@ Cisco I suppose for making their products such a nightmare to manage using
 SNMP.
 
 Joshua Keroes for pointing out some of the make test issues ( thanks!! )
+Joshua Keroes for requesting HC (64bit) for interfaces
 
 Motorola for some pointers with their CMTS ( still waiting on some info )
 
