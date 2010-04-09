@@ -287,11 +287,34 @@ sub DOCSIS_packet_cable
 my %snmp_usable_oid=
 	(
 	'docsIfCmtsCmStatusMacAddress'		=>	'1.3.6.1.2.1.10.127.1.3.3.1.2',
-	'docsIfCmtsMacToCmEntry'		=>	'1.3.6.1.2.1.10.127.1.3.7.1.2'
+	'docsQosCmtsIfIndex'			=> 	'1.3.6.1.2.1.10.127.7.1.11.1.3',
+	'docsQosParamSetServiceClassName'	=>	'1.3.6.1.2.1.10.127.7.1.2.2.4',
+	'docsQosParamSetMaxTrafficRate'		=>	'1.3.6.1.2.1.10.127.7.1.2.2.6',
+	'docsQosParamSetSchedulingType'		=>	'1.3.6.1.2.1.10.127.7.1.2.2.13',
+	'docsIfCmtsMacToCmEntry'		=>	'1.3.6.1.2.1.10.127.1.3.7.1.2',
+        'cdxCmtsCmCurrQoSPro'                   =>      '1.3.6.1.4.1.9.9.116.1.3.6.1.3'
 	);
 return \%snmp_usable_oid;
 }
 	
+sub WideBand_MPEG
+{
+my %snmp_usable_oid =
+	(
+	'ccwbRFChannelMpegPkts'			=>	'1.3.6.1.4.1.9.9.479.1.1.1.6',
+	'ccwbWBtoRFBandwidth'			=>	'1.3.6.1.4.1.9.9.479.1.3.1.1',
+	'Moto1'				=>	'1.3.6.1.2.1.4.31.3.1.4.1',
+	'Moto2'				=>	'1.3.6.1.2.1.4.31.3.1.6.1',
+	'Moto3'				=>	'1.3.6.1.2.1.4.31.3.1.31.1',
+	'Moto4'				=>	'1.3.6.1.2.1.4.31.3.1.33.1',
+	'Moto5'				=>	'1.3.6.1.2.1.4.31.3.1.35.1',
+	'Moto6'				=>	'1.3.6.1.2.1.4.31.3.1.43.1',
+	'Moto7'				=>	'1.3.6.1.2.1.4.31.3.1.45.1'
+	);
+
+
+return \%snmp_usable_oid;
+}
 
 sub DOCSIS_populate_oid
 {

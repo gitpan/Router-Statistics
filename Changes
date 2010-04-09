@@ -1,4 +1,7 @@
 Revision history for Router-Statistics
+0.99_989 04/04/2010
+	Added some DOCSIS3 functions to aid in profile capture for
+	DOCSIS 1.0 and DOCSIS3 speeds.
 0.99_988 04/04/2008
 	Added Telnet off by default for STM information
 		Requested as part of a clean for keeping convention, but allowing

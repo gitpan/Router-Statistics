@@ -16,11 +16,11 @@ Router::Statistics - Router Statistics and Information Collection
 
 =head1 VERSION
 
-Version 0.99_988
+Version 0.99_989
 
 =cut
 
-our $VERSION = '0.99_988';
+our $VERSION = '0.99_989';
 
 =head1 SYNOPSIS
 
@@ -571,9 +571,15 @@ sub new {
 	$self->{_GLOBAL}{'STATUS'}="OK";
 	
 	if ( !$self->{_GLOBAL}{'64Bit'} )
-		{ $self->{_GLOBAL}{'64Bit'}=0; }
+		{ 
+		$self->{_GLOBAL}{'64Bit'}=0; 
+		$self->{_GLOBAL}{'32Bit'}=1; 
+		}
 		else
-		{ $self->{_GLOBAL}{'32Bit'}=1; }
+		{ 
+		$self->{_GLOBAL}{'32Bit'}=0;
+		$self->{_GLOBAL}{'64Bit'}=1;
+		}
 
 	$self->{_GLOBAL}{'STM_Safety_Limit'}=15;
 	$self->{_GLOBAL}{'Telnet'}=0;
@@ -1660,6 +1666,251 @@ foreach my $ip_address ( keys %{$data} )
 return 1;
 }
 
+sub Router_get_interfaces_description2_MPEG
+{
+my $self = shift;
+my $data = shift;
+my $type = shift;
+
+my $current_ubrs=$self->Router_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 )
+        {
+        print "No Routers not running" if $self->{_GLOBAL}{'DEBUG'}==1;
+         return 0; }
+
+my $snmp_variables=Router::Statistics::OID->Router_inventory_oid();
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+        print "Doing IP '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+        my ( $foo, $bar );
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_table(
+                -baseoid => ${$snmp_variables}{'entPhysicalName'} );
+        while(($foo, $bar) = each(%{$profile_information}))
+                {
+                #print "Foo is '$foo' bar is '$bar'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+                next unless($foo =~ /^${$snmp_variables}{'entPhysicalName'}.(\d+)/);
+                if ( $foo=~/^${$snmp_variables}{'entPhysicalName'}.(\d+)/ )
+                         { ${$data}{$ip_address}{$1}{'entPhysicalName'}=$bar; }
+                }
+        }
+return 1;
+}
+
+
+sub Router_get_interfaces_description_MPEG
+{
+my $self = shift;
+my $data = shift;
+my $type = shift;
+
+my $current_ubrs=$self->Router_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 )
+        {
+        print "No Routers not running" if $self->{_GLOBAL}{'DEBUG'}==1;
+         return 0; }
+
+my $snmp_variables=Router::Statistics::OID->Router_interface_oid(); 
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+        print "Doing IP '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+        my ( $foo, $bar );
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_table(
+                -baseoid => ${$snmp_variables}{'ifDescr'} );
+        while(($foo, $bar) = each(%{$profile_information}))
+                {
+                #print "Foo is '$foo' bar is '$bar'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+                next unless($foo =~ /^${$snmp_variables}{'PRIVATE_interface_base'}.(\d+)/);
+                if ( $foo=~/^${$snmp_variables}{'ifDescr'}.(\d+)/ )
+			 { ${$data}{$ip_address}{$1}{'ifDescr'}=$bar; }
+		}
+	}
+return 1;
+}
+
+sub WideBand_MPEG_Tester
+{
+my $self = shift;
+my $data = shift;
+my $type = shift;
+
+my $current_ubrs=$self->Router_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 )
+	{
+	print "No Routers not running" if $self->{_GLOBAL}{'DEBUG'}==1;
+	return 0; 
+	}
+
+my $snmp_variables=Router::Statistics::OID->WideBand_MPEG();
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+        print "Doing IP '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+        my ( $foo, $bar );
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_table(
+                -baseoid => ${$snmp_variables}{'ccwbRFChannelMpegPkts'} );
+        while(($foo, $bar) = each(%{$profile_information}))
+                {
+                #print "Foo is '$foo' bar is '$bar'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+                next unless($foo =~ /^${$snmp_variables}{'ccwbRFChannelMpegPkts'}.(\d+)/);
+                if ( $foo=~/^${$snmp_variables}{'ccwbRFChannelMpegPkts'}.(\d+).(\d+)/ )
+                         { ${$data}{$ip_address}{$1}{$2}{'ccwbRFChannelMpegPkts'}=$bar; }
+                }
+        }
+return 1;
+}
+
+sub WideBand_Motorola_Test
+{
+my $self = shift;
+my $data = shift;
+my $type = shift;
+
+my $current_ubrs=$self->Router_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 ) 
+	{ 
+	print "No Routers not running" if $self->{_GLOBAL}{'DEBUG'}==1;
+	return 0; 
+	}
+
+my $snmp_variables = Router::Statistics::OID->Router_interface_oid();
+my $int_snmp_variables = Router::Statistics::OID->WideBand_MPEG();
+my %temp;
+my ($foo,$bar);
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_table(
+                        -baseoid => ${$snmp_variables}{'PRIVATE_interface_base'} );
+
+        while(($foo, $bar) = each(%{$profile_information}))
+                { foreach my $snmp_value ( keys %{$snmp_variables} )
+                        {
+			#print "SNMP is '$snmp_value' foo is '$foo'\n"; 
+			if ( $foo=~/^${$snmp_variables}{$snmp_value}.(\d+)/ ) 
+				{ 
+				#print "One is '$1' value is '$snmp_value' bar is '$bar'\n";
+				$temp{$ip_address}{$1}{$snmp_value}=$bar; } 
+			}
+                delete ${$profile_information}{$foo};
+                }
+
+	foreach my $key_id ( keys %{$temp{$ip_address}} )
+		{
+		print "Key is '$key_id'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+
+		next if !$temp{$ip_address}{$key_id}{'ifDescr'};
+
+		print "Description is '$temp{$ip_address}{$key_id}{'ifDescr'}'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+
+	my $moto1 = ${$int_snmp_variables}{'Moto1'}.".$key_id";
+	my $moto2 = ${$int_snmp_variables}{'Moto2'}.".$key_id";
+	my $moto3 = ${$int_snmp_variables}{'Moto3'}.".$key_id";
+	my $moto4 = ${$int_snmp_variables}{'Moto4'}.".$key_id";
+	my $moto5 = ${$int_snmp_variables}{'Moto5'}.".$key_id";
+	my $moto6 = ${$int_snmp_variables}{'Moto6'}.".$key_id";
+	my $moto7 = ${$int_snmp_variables}{'Moto7'}.".$key_id";
+
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_request ( -varbindlist => [
+                                $moto1, $moto2,	$moto3,
+	                         $moto4, $moto5, $moto6,	
+                                $moto7, 
+                                ] );
+
+	print "router is '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+
+	print "result is '".$profile_information->{ $moto1 }."'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+
+        ${$data}{$ip_address}{ $temp{$ip_address}{$key_id}{'ifDescr'} }{'Moto1'} =
+			$profile_information->{ $moto1 };
+
+        ${$data}{$ip_address}{ $temp{$ip_address}{$key_id}{'ifDescr'} }{'Moto2'} =
+			$profile_information->{ $moto2 };
+
+        ${$data}{$ip_address}{ $temp{$ip_address}{$key_id}{'ifDescr'} }{'Moto3'} =
+			$profile_information->{ $moto3 };
+
+        ${$data}{$ip_address}{ $temp{$ip_address}{$key_id}{'ifDescr'} }{'Moto4'} =
+			$profile_information->{ $moto4 };
+
+        ${$data}{$ip_address}{ $temp{$ip_address}{$key_id}{'ifDescr'} }{'Moto5'} =
+			$profile_information->{ $moto5 };
+
+        ${$data}{$ip_address}{ $temp{$ip_address}{$key_id}{'ifDescr'} }{'Moto6'} =
+			$profile_information->{ $moto6 };
+
+        ${$data}{$ip_address}{ $temp{$ip_address}{$key_id}{'ifDescr'} }{'Moto7'} =
+			$profile_information->{ $moto7 };
+
+        ${$data}{$ip_address}{ $temp{$ip_address}{$key_id}{'ifDescr'} }{'ifInOctets'} =
+			 $temp{$ip_address}{$key_id}{'ifInOctets'}; 
+
+        ${$data}{$ip_address}{ $temp{$ip_address}{$key_id}{'ifDescr'} }{'ifOutOctets'} =
+			 $temp{$ip_address}{$key_id}{'ifOutOctets'}; 
+
+
+		}
+        }
+return 1;
+}
+
+
+sub WideBand_Channels_To_Interface
+{
+my $self = shift;
+my $data = shift;
+
+#ccwbWBtoRFBandwidth
+#poller@test:~$ /usr/bin/snmpwalk -v 2c -c public 80.194.79.233 .1.3.6.1.4.1.9.9.479.1.3.1.1
+#SNMPv2-SMI::enterprises.9.9.479.1.3.1.1.14.48.0 = Gauge32: 1
+#SNMPv2-SMI::enterprises.9.9.479.1.3.1.1.14.48.1 = Gauge32: 1
+#SNMPv2-SMI::enterprises.9.9.479.1.3.1.1.14.48.2 = Gauge32: 1
+#SNMPv2-SMI::enterprises.9.9.479.1.3.1.1.15.48.3 = Gauge32: 1
+#SNMPv2-SMI::enterprises.9.9.479.1.3.1.1.15.48.4 = Gauge32: 1
+#SNMPv2-SMI::enterprises.9.9.479.1.3.1.1.15.48.5 = Gauge32: 1
+
+my $current_ubrs=$self->Router_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 )
+        {
+        print "No Routers not running" if $self->{_GLOBAL}{'DEBUG'}==1;
+        return 0;
+        }
+
+my $snmp_variables=Router::Statistics::OID->WideBand_MPEG();
+foreach my $ip_address ( keys %{$current_ubrs} )
+        {
+        next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+        print "Doing IP '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+        my ( $foo, $bar );
+        my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                get_table(
+                -baseoid => ${$snmp_variables}{'ccwbWBtoRFBandwidth'} );
+        while(($foo, $bar) = each(%{$profile_information}))
+                {
+                #print "Foo is '$foo' bar is '$bar'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
+                next unless($foo =~ /^${$snmp_variables}{'ccwbWBtoRFBandwidth'}/);
+                if ( $foo=~/^${$snmp_variables}{'ccwbWBtoRFBandwidth'}.(\d+).(\d+).(\d+)/ )
+			{ 
+#			print "One '$1' two '$2' three '$3'\n"; 
+			my $temp="$2-$3";
+			${$data}{$ip_address}{'interface'}{$temp}=$1;
+			#${$data}{$ip_address}{'spa'}{$3}=$2;
+			#${$data}{$ip_address}{'channel'}{$3}{'spa'}=$2;
+			#${$data}{$ip_address}{'channel'}{$3}{'interface'}=$1;
+			}
+                }
+        }
+return 1;
+}
+
+
+
 sub Router_get_interfaces_Blocking
 {
 my $self = shift;
@@ -1667,7 +1918,10 @@ my $data = shift;
 my $type = shift;
 
 my $current_ubrs=$self->Router_Return_All();
-if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
+if ( scalar( keys %{$current_ubrs})==0 ) 
+	{
+	print "No Routers not running" if $self->{_GLOBAL}{'DEBUG'}==1;
+	 return 0; }
 
 my $snmp_variables;
 
@@ -1679,15 +1933,28 @@ if ( $self->{_GLOBAL}{'64Bit'}==1 ||
         $type=~/^64Bit$/i )
         { $snmp_variables=Router::Statistics::OID->Router_interface_oid_hc(); }
 
+print "Type enabled is '$type' \n" if $self->{_GLOBAL}{'DEBUG'}==1;
+print "SNMP variables are \n" if $self->{_GLOBAL}{'DEBUG'}==1;
+if ( $self->{_GLOBAL}{'DEBUG'}==1 )
+	{
+	foreach my $attribute ( keys %{$snmp_variables} )
+		{
+		print "Attribute is '$attribute' value is '${$snmp_variables}{$attribute}'\n";
+		}
+	}
+
+
 foreach my $ip_address ( keys %{$current_ubrs} )
         {
 	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+	print "Doing IP '$ip_address'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 	my ( $foo, $bar );
 	my ($profile_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 		get_table(
 		-baseoid => ${$snmp_variables}{'PRIVATE_interface_base'} );
 	while(($foo, $bar) = each(%{$profile_information}))
 		{
+		#print "Foo is '$foo' bar is '$bar'\n" if $self->{_GLOBAL}{'DEBUG'}==1;
 		next unless($foo =~ /^${$snmp_variables}{'PRIVATE_interface_base'}.(\d+)/);
 		if ( $foo=~/^${$snmp_variables}{'ifDescr'}.(\d+)/ )
 			{ ${$data}{$ip_address}{$1}{'ifDescr'}=$bar; }
@@ -2807,6 +3074,182 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 return 1;
 }
 
+sub UBR_get_CPE_DOCS12_Blocking
+{
+my $self = shift;
+my $data = shift;
+my $data_selector = shift;
+
+my ( $foo, $bar );
+
+my $current_ubrs=$self->Router_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
+
+my $snmp_variables = Router::Statistics::OID->DOCSIS_populate_oid();
+if ( $data_selector=~/QOSPROFILE/i || $data_selector=~/ALL/i )
+        {
+        foreach my $ip_address ( keys %{$current_ubrs} )
+                {
+                next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+                        my $sider=${$snmp_variables}{'cdxCmtsCmCurrQoSPro'};
+                        my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                                get_table(
+                                -baseoid => $sider );
+                        while(($foo, $bar) = each(%{$status_information}))
+                                {
+                                if ( $foo=~/^${$snmp_variables}{'cdxCmtsCmCurrQoSPro'}.(\d+)/ )
+                                        {
+                                        ${$data}{$ip_address}{$1}{'cdxCmtsCmCurrQoSPro'}=$bar;
+                                        }
+                                delete ${$status_information}{$foo};
+                                }
+                }
+        }
+if ( $data_selector=~/CPEMAC/i || $data_selector=~/ALL/i )
+        {
+        foreach my $ip_address ( keys %{$current_ubrs} )
+                {
+                next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+                my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+                        get_table(
+                        -baseoid => ${$snmp_variables}{'docsIfCmtsCmStatusMacAddress'} );
+                while(($foo, $bar) = each(%{$status_information}))
+                        {
+                        if ( $foo=~/^${$snmp_variables}{'docsIfCmtsCmStatusMacAddress'}.(\d+)/ )
+                                {
+                                ${$data}{$ip_address}{$1}{'docsIfCmtsCmStatusMacAddress'}=_convert_mac_address($bar);
+                                }
+                        delete ${$status_information}{$foo};
+                        }
+                }
+        }
+
+return 1;
+}
+
+sub UBR_get_CPE_DOCS3_Blocking
+{
+my $self = shift;
+my $data = shift;
+my $data_selector = shift;
+
+my ( $foo, $bar );
+my ( %service_flows );
+my ( %data_set );
+my ( %mac_flows );
+my @directions = qw [ unknown Downstream Upstream ];
+
+my $current_ubrs=$self->Router_Return_All();
+if ( scalar( keys %{$current_ubrs})==0 ) { return 0; }
+
+my $snmp_variables = Router::Statistics::OID->DOCSIS_packet_cable();
+
+foreach my $ip_address ( keys %{$current_ubrs} )
+	{
+	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+	my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+		get_table(
+			-baseoid => ${$snmp_variables}{'docsQosParamSetServiceClassName'} );
+	while(($foo, $bar) = each(%{$status_information}))
+		{
+		if ( $foo=~/^${$snmp_variables}{'docsQosParamSetServiceClassName'}.(\d+).(\d+).(\d+)/ )
+			{
+			$service_flows{'flow_name'}{$1}{$2}{$3}="$bar";
+			}
+		delete ${$status_information}{$foo};
+		}
+	}
+
+foreach my $ip_address ( keys %{$current_ubrs} )
+	{
+	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+	my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+		get_table(
+			-baseoid => ${$snmp_variables}{'docsQosParamSetMaxTrafficRate'} );
+	while(($foo, $bar) = each(%{$status_information}))
+		{
+		if ( $foo=~/^${$snmp_variables}{'docsQosParamSetMaxTrafficRate'}.(\d+).(\d+).(\d+)/ )
+			{
+			$service_flows{'flow_speed'}{$1}{$2}{$3}="$bar";
+			}
+		delete ${$status_information}{$foo};
+		}
+	}
+
+
+foreach my $ip_address ( keys %{$current_ubrs} )
+	{
+	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+	my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+		get_table(
+			-baseoid => ${$snmp_variables}{'docsQosParamSetSchedulingType'} );
+	while(($foo, $bar) = each(%{$status_information}))
+		{
+		if ( $foo=~/^${$snmp_variables}{'docsQosParamSetSchedulingType'}.(\d+).(\d+).(\d+)/ )
+			{
+			$service_flows{'flow_direction'}{$1}{$2}{$3}="$bar";
+			}
+		delete ${$status_information}{$foo};
+		}
+	}
+
+
+foreach my $ip_address ( keys %{$current_ubrs} )
+	{
+	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+	my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+		get_table(
+			-baseoid => ${$snmp_variables}{'docsIfCmtsCmStatusMacAddress'} );
+	while(($foo, $bar) = each(%{$status_information}))
+		{
+		if ( $foo=~/^${$snmp_variables}{'docsIfCmtsCmStatusMacAddress'}.(\d+)/ )
+			{
+			$data_set{$1}="$bar";
+			}
+		delete ${$status_information}{$foo};
+		}
+	}
+
+foreach my $ip_address ( keys %{$current_ubrs} )
+	{
+	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
+	my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
+		get_table(
+			-baseoid => ${$snmp_variables}{'docsQosCmtsIfIndex'} );
+	while(($foo, $bar) = each(%{$status_information}))
+		{
+		if ( $foo=~/^${$snmp_variables}{'docsQosCmtsIfIndex'}.(\d+).(\d+).(\d+).(\d+).(\d+).(\d+).(\d+)/ )
+			{
+			my $mac=sprintf("%.2x-%.2x-%.2x-%.2x-%.2x-%.2x",$1,$2,$3,$4,$5,$6);
+			$mac=~tr/[a-z]/[A-Z]/; $mac_flows{$mac}{$7}=$bar;
+			}
+		delete ${$status_information}{$foo};
+		}
+	}
+
+foreach my $real_mac ( keys %mac_flows )
+        {
+        foreach my $flows ( keys %{$mac_flows{$real_mac}} )
+                {
+                next if $service_flows{'flow_speed'}{ $mac_flows{$real_mac}{$flows} }{ $flows}{'1'}==0;
+                my $direction_d = $directions[ $service_flows{'flow_direction'}{ $mac_flows{$real_mac}{$flows} }{ $flows}{'1'}];
+                my $direction = $service_flows{'flow_direction'}{ $mac_flows{$real_mac}{$flows} }{ $flows}{'1'};
+                ${$data}{$real_mac}{'direction'}{$direction_d} = $service_flows{'flow_speed'}{ $mac_flows{$real_mac}{$flows} }{ $flows}{$direction};
+                ${$data}{$real_mac}{'interface_index'} = $mac_flows{$real_mac}{$flows};
+                ${$data}{$real_mac}{'service_name'} = $service_flows{'flow_name'}{ $mac_flows{$real_mac}{$flows} }{ $flows} {'1'};
+                delete $mac_flows{$real_mac}{$flows};
+                }
+        }
+
+foreach my $real_mac ( keys %mac_flows )
+	{
+	if ( !${$data}{$real_mac}{'direction'}{'Upstream'} ) { ${$data}{$real_mac}{'direction'}{'Upstream'}=0; }
+	if ( !${$data}{$real_mac}{'direction'}{'Downstream'} ) { ${$data}{$real_mac}{'direction'}{'Downstream'}=0; }
+	}
+
+return 1;
+}
+
 
 sub UBR_get_CPE_information_Blocking
 {
@@ -2816,6 +3259,8 @@ my $data = shift;
 my $data_selector = shift;
 
 my ( $foo, $bar );
+
+#print "Data selector is '$data_selector'\n";
 
 # Entry into the function is a point to a hash to store the data
 # the result is a hash with the following
@@ -2845,9 +3290,10 @@ my $snmp_variables = Router::Statistics::OID->DOCSIS_populate_oid();
 foreach my $ip_address ( keys %{$current_ubrs} )
         {
 	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-	for ($check_loop=0;$check_loop<100;$check_loop++)
-		{
-		my $sider=${$snmp_variables}{'docsIfCmtsServiceCmStatusIndex'}.".".$check_loop;
+#	for ($check_loop=0;$check_loop<2048;$check_loop++)
+#		{
+#		my $sider=${$snmp_variables}{'docsIfCmtsServiceCmStatusIndex'}.".".$check_loop;
+		my $sider=${$snmp_variables}{'docsIfCmtsServiceCmStatusIndex'};
 		my ($status_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
         	        get_table( 
 			-baseoid => $sider );
@@ -2860,7 +3306,7 @@ foreach my $ip_address ( keys %{$current_ubrs} )
 				delete ${$status_information}{$foo};
 				}
 			}
-		}
+#		}
 	}
 
 
@@ -2942,9 +3388,10 @@ if ( $data_selector=~/QOSPROFILE/i || $data_selector=~/ALL/i )
 	foreach my $ip_address ( keys %{$current_ubrs} )
 		{
 		next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-		for ($check_loop=0;$check_loop<100;$check_loop++)
-			{
-			my $sider=${$snmp_variables}{'docsIfCmtsServiceQosProfile'}.".".$check_loop;
+#		for ($check_loop=0;$check_loop<2048;$check_loop++)
+#			{
+#			my $sider=${$snmp_variables}{'docsIfCmtsServiceQosProfile'}.".".$check_loop;
+			my $sider=${$snmp_variables}{'docsIfCmtsServiceQosProfile'};
 			my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 				get_table(
 				-baseoid => $sider );
@@ -2958,7 +3405,7 @@ if ( $data_selector=~/QOSPROFILE/i || $data_selector=~/ALL/i )
 					}
 				delete ${$status_information}{$foo};
 				}
-			}
+#			}
 		}
 	}
 
@@ -2967,9 +3414,10 @@ if ( $data_selector=~/INOCTETS/i || $data_selector=~/ALL/i )
 	foreach my $ip_address ( keys %{$current_ubrs} )
 		{
 		next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-		for ($check_loop=0;$check_loop<100;$check_loop++)
-			{
-			my $sider=${$snmp_variables}{'docsIfCmtsServiceInOctets'}.".".$check_loop;
+#		for ($check_loop=0;$check_loop<100;$check_loop++)
+#			{
+#			my $sider=${$snmp_variables}{'docsIfCmtsServiceInOctets'}.".".$check_loop;
+			my $sider=${$snmp_variables}{'docsIfCmtsServiceInOctets'};
 			my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 				get_table(
 				-baseoid => $sider );
@@ -2983,7 +3431,7 @@ if ( $data_selector=~/INOCTETS/i || $data_selector=~/ALL/i )
 					}
 				delete ${$status_information}{$foo};
 				}
-			}
+#			}
 		}
 	}
 
@@ -2992,9 +3440,10 @@ if ( $data_selector=~/INPACKETS/i || $data_selector=~/ALL/i )
 	foreach my $ip_address ( keys %{$current_ubrs} )
 		{
 		next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-		for ($check_loop=0;$check_loop<100;$check_loop++)
-			{
-			my $sider=${$snmp_variables}{'docsIfCmtsServiceInPackets'}.".".$check_loop;
+#		for ($check_loop=0;$check_loop<100;$check_loop++)
+#			{
+#			my $sider=${$snmp_variables}{'docsIfCmtsServiceInPackets'}.".".$check_loop;
+			my $sider=${$snmp_variables}{'docsIfCmtsServiceInPackets'};
 			my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 				get_table(
 				-baseoid => $sider );
@@ -3008,7 +3457,7 @@ if ( $data_selector=~/INPACKETS/i || $data_selector=~/ALL/i )
 					}
 				delete ${$status_information}{$foo};
 				}
-			}
+#			}
 		}
         }
 
@@ -3018,9 +3467,10 @@ if ( $data_selector=~/OUTOCTETS/i || $data_selector=~/ALL/i )
 	foreach my $ip_address ( keys %{$current_ubrs} )
 		{
 		next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-		for ($check_loop=0;$check_loop<100;$check_loop++)
-			{
-			my $sider=${$snmp_variables}{'cdxIfCmtsServiceOutOctets'}.".".$check_loop;
+#		for ($check_loop=0;$check_loop<100;$check_loop++)
+#			{
+#			my $sider=${$snmp_variables}{'cdxIfCmtsServiceOutOctets'}.".".$check_loop;
+			my $sider=${$snmp_variables}{'cdxIfCmtsServiceOutOctets'};
 			my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 				get_table(
 				-baseoid => $sider );
@@ -3034,7 +3484,7 @@ if ( $data_selector=~/OUTOCTETS/i || $data_selector=~/ALL/i )
 					}
 				delete ${$status_information}{$foo};
 				}
-			}
+#			}
 		}
 	}
 
@@ -3043,9 +3493,10 @@ if ( $data_selector=~/OUTPACKETS/i || $data_selector=~/ALL/i )
 	foreach my $ip_address ( keys %{$current_ubrs} )
 		{
 		next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-		for ($check_loop=0;$check_loop<100;$check_loop++)
-			{
-			my $sider=${$snmp_variables}{'cdxIfCmtsServiceOutPackets'}.".".$check_loop;
+#		for ($check_loop=0;$check_loop<100;$check_loop++)
+#			{
+#			my $sider=${$snmp_variables}{'cdxIfCmtsServiceOutPackets'}.".".$check_loop;
+			my $sider=${$snmp_variables}{'cdxIfCmtsServiceOutPackets'};
 			my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 				get_table(
 				-baseoid => $sider );
@@ -3059,7 +3510,7 @@ if ( $data_selector=~/OUTPACKETS/i || $data_selector=~/ALL/i )
 					}
 				delete ${$status_information}{$foo};
 				}
-			}
+#			}
 		}
 	}
 
@@ -3152,14 +3603,15 @@ my $snmp_variables = Router::Statistics::OID->DOCSIS_populate_oid();
 foreach my $ip_address ( keys %{$current_ubrs} )
         {
 	next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-	for ($check_loop=0;$check_loop<100;$check_loop++)
-		{
-		my $sider=${$snmp_variables}{'docsIfCmtsServiceCmStatusIndex'}.".".$check_loop;
+#	for ($check_loop=0;$check_loop<100;$check_loop++)
+#		{
+#		my $sider=${$snmp_variables}{'docsIfCmtsServiceCmStatusIndex'}.".".$check_loop;
+		my $sider=${$snmp_variables}{'docsIfCmtsServiceCmStatusIndex'};
 		my ($status_information)=$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
         	        get_table( 
 			-callback       => [ \&validate_two_rev, \%rev_data_pack, $ip_address, $snmp_variables ],
 			-baseoid => $sider );
-		}
+#		}
 	}
 snmp_dispatcher();
 
@@ -3217,14 +3669,15 @@ if ( $data_selector=~/QOSPROFILE/i || $data_selector=~/ALL/i )
 	foreach my $ip_address ( keys %{$current_ubrs} )
 		{
 		next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-		for ($check_loop=0;$check_loop<50;$check_loop++)
-			{
-			my $sider=${$snmp_variables}{'docsIfCmtsServiceQosProfile'}.".".$check_loop;
+#		for ($check_loop=0;$check_loop<50;$check_loop++)
+#			{
+#			my $sider=${$snmp_variables}{'docsIfCmtsServiceQosProfile'}.".".$check_loop;
+			my $sider=${$snmp_variables}{'docsIfCmtsServiceQosProfile'};
 			my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 				get_table( 
 					-callback       => [ \&validate_two_special, $data, $ip_address, $snmp_variables, \%rev_data_pack ],
 					-baseoid => $sider );
-			}
+#			}
 		}
 	snmp_dispatcher();
 	}
@@ -3234,14 +3687,15 @@ if ( $data_selector=~/INOCTETS/i || $data_selector=~/ALL/i )
 	foreach my $ip_address ( keys %{$current_ubrs} )
 		{
 		next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-		for ($check_loop=0;$check_loop<100;$check_loop++)
-			{
-			my $sider=${$snmp_variables}{'docsIfCmtsServiceInOctets'}.".".$check_loop;
+#		for ($check_loop=0;$check_loop<100;$check_loop++)
+#			{
+#			my $sider=${$snmp_variables}{'docsIfCmtsServiceInOctets'}.".".$check_loop;
+			my $sider=${$snmp_variables}{'docsIfCmtsServiceInOctets'};
 			my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 				get_table( 
 					-callback       => [ \&validate_two_special, $data, $ip_address, $snmp_variables, \%rev_data_pack ],
 					-baseoid => $sider );
-			}
+#			}
 		}
 	snmp_dispatcher();
 	}
@@ -3251,14 +3705,15 @@ if ( $data_selector=~/INPACKETS/i || $data_selector=~/ALL/i )
 	foreach my $ip_address ( keys %{$current_ubrs} )
 		{
 		next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-		for ($check_loop=0;$check_loop<100;$check_loop++)
-			{
-			my $sider=${$snmp_variables}{'docsIfCmtsServiceInPackets'}.".".$check_loop;
+#		for ($check_loop=0;$check_loop<100;$check_loop++)
+#			{
+#			my $sider=${$snmp_variables}{'docsIfCmtsServiceInPackets'}.".".$check_loop;
+			my $sider=${$snmp_variables}{'docsIfCmtsServiceInPackets'};
 			my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 				get_table( 
 					-callback       => [ \&validate_two_special, $data, $ip_address, $snmp_variables, \%rev_data_pack ],
 					-baseoid => $sider );
-			}
+#			}
 		}
 	snmp_dispatcher();
 	}
@@ -3268,14 +3723,15 @@ if ( $data_selector=~/OUTOCTETS/i || $data_selector=~/ALL/i )
 	foreach my $ip_address ( keys %{$current_ubrs} )
 		{
 		next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-		for ($check_loop=0;$check_loop<100;$check_loop++)
-			{
-			my $sider=${$snmp_variables}{'cdxIfCmtsServiceOutOctets'}.".".$check_loop;
+#		for ($check_loop=0;$check_loop<100;$check_loop++)
+#			{
+#			my $sider=${$snmp_variables}{'cdxIfCmtsServiceOutOctets'}.".".$check_loop;
+			my $sider=${$snmp_variables}{'cdxIfCmtsServiceOutOctets'};
 			my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 				get_table( 
 					-callback       => [ \&validate_two_special, $data, $ip_address, $snmp_variables, \%rev_data_pack ],
 					-baseoid => $sider );
-			}
+#			}
 		}
 	snmp_dispatcher();
 	}
@@ -3285,14 +3741,15 @@ if ( $data_selector=~/OUTPACKETS/i || $data_selector=~/ALL/i )
 	foreach my $ip_address ( keys %{$current_ubrs} )
 		{
 		next if !$self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'};
-		for ($check_loop=0;$check_loop<100;$check_loop++)
-			{
-			my $sider=${$snmp_variables}{'cdxIfCmtsServiceOutPackets'}.".".$check_loop;
+#		for ($check_loop=0;$check_loop<100;$check_loop++)
+#			{
+#			my $sider=${$snmp_variables}{'cdxIfCmtsServiceOutPackets'}.".".$check_loop;
+			my $sider=${$snmp_variables}{'cdxIfCmtsServiceOutPackets'};
 			my ($status_information) = $self->{_GLOBAL}{'Router'}{$ip_address}{'SESSION'}->
 				get_table( 
 					-callback       => [ \&validate_two_special, $data, $ip_address, $snmp_variables, \%rev_data_pack ],
 					-baseoid => $sider );
-			}
+#			}
 		}
 	snmp_dispatcher();
 	}
